@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Stars Roulette Online</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --tg-bg: #0a0a0c;
+            --gold-gradient: linear-gradient(135deg, #ffcf33, #ff9500);
+            --star-color: #ffd700;
+            --text-hint: #a1a1a6;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--tg-bg);
+            color: white;
+            margin: 0; padding: 0;
+            height: 100vh; display: flex; flex-direction: column;
+            overflow: hidden;
+            background-image: radial-gradient(circle at 90% 10%, rgba(255, 204, 0, 0.05) 0%, transparent 40%);
+        }
+
+        /* Светящийся фон */
+        .bg-glow {
+            position: fixed; width: 300px; height: 300px; background: var(--gold-gradient);
+            filter: blur(100px); opacity: 0.1; z-index: -1; border-radius: 50%;
+            animation: move 20s infinite alternate;
+        }
+        @keyframes move { from { transform: translate(-20%, -20%); } to { transform: translate(50%, 50%); } }
+
+        /* Шапка с балансом СПРАВА */
+        .top-nav {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            backdrop-filter: blur(10px); background: rgba(0,0,0,0.3);
+        }
+
+        .balance-container { display: flex; align-items: center; gap: 8px; }
+
+        .balance-chip {
+            background: rgba(255, 255, 255, 0.08); padding: 8px 12px; border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1); font-weight: 700; font-size: 14px;
+        }
+        .balance-chip span { color: var(--star-color); }
+
+        .btn-deposit {
+            background: var(--gold-gradient); border: none; border-radius: 12px;
+            width: 34px; height: 34px; color: #000; font-weight: 800; font-size: 20px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Банк */
+        .bank-section { text-align: center; padding: 20px 0; }
+        .bank-label { font-size: 11px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 2px; }
+        .bank-value { font-size: 42px; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* Рулетка */
+        .roulette-container {
+            position: relative; width: 100%; height: 130px; background: rgba(255, 255, 255, 0.03);
+            margin: 10px 0; overflow: hidden; display: flex; align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .pointer {
+            position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; background: var(--star-color);
+            z-index: 10; transform: translateX(-50%); box-shadow: 0 0 20px var(--star-color);
+        }
+        .tape { display: flex; height: 100%; will-change: transform; align-items: center; }
+        .segment {
+            flex-shrink: 0; height: 85%; display: flex; align-items: center; justify-content: center;
+            margin: 0 4px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+        }
+        .segment img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); }
+
+        /* Форма ставки */
+        .bet-form { padding: 0 20px; margin-bottom: 15px; }
+        .input-group {
+            background: rgba(255,255,255,0.07); border-radius: 20px; display: flex; padding: 6px; gap: 10px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .input-group input { flex: 1; background: transparent; border: none; color: white; font-size: 18px; padding-left: 15px; outline: none; font-weight: 600; }
+        .btn-bet { background: var(--gold-gradient); color: black; border: none; padding: 12px 25px; border-radius: 16px; font-weight: 800; cursor: pointer; }
+
+        /* Список игроков */
+        .players-list { flex: 1; padding: 0 20px; overflow-y: auto; }
+        .player-row {
+            display: flex; align-items: center; padding: 12px 15px; background: rgba(255,255,255,0.03);
+            margin-bottom: 8px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .player-row img { width: 35px; height: 35px; border-radius: 10px; margin-right: 12px; }
+        .player-name { flex: 1; font-weight: 600; }
+        .p-bet { color: var(--star-color); font-weight: 800; }
+
+        /* Окно победителя */
+        .modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(15px);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+        .win-avatar { width: 120px; height: 120px; border-radius: 50%; border: 5px solid var(--star-color); margin: 20px 0; box-shadow: 0 0 40px rgba(255, 215, 0, 0.4); }
+        .close-timer { position: absolute; bottom: 0; left: 0; height: 5px; background: var(--star-color); width: 100%; animation: shrink 3s linear forwards; }
+        @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="top-nav">
+        <div style="font-size: 10px; color: var(--text-hint);">Stars Roulette<br><b>ONLINE PRO</b></div>
+        <div class="balance-container">
+            <div class="balance-chip"><span id="my-balance">1,000</span> ⭐</div>
+            <button class="btn-deposit" onclick="buyStars()">+</button>
+        </div>
+    </div>
+
+    <div class="bank-section">
+        <div class="bank-label" id="status-label">Ожидание игроков...</div>
+        <div class="bank-value" id="total-bank">0 ⭐</div>
+    </div>
+
+    <div class="roulette-container">
+        <div class="pointer"></div>
+        <div class="tape" id="tape"></div>
+    </div>
+
+    <div class="bet-form">
+        <div class="input-group">
+            <input type="number" id="bet-input" value="10" inputmode="numeric">
+            <button class="btn-bet" onclick="makeBet()">СТАВКА</button>
+        </div>
+    </div>
+
+    <div class="players-list" id="players-box"></div>
+
+    <div class="modal" id="win-modal">
+        <div style="color: var(--star-color); font-weight: 900; letter-spacing: 2px;">ПОБЕДИТЕЛЬ</div>
+        <img src="" id="win-img" class="win-avatar">
+        <div id="win-name" style="font-size: 20px; font-weight: 700;">Имя</div>
+        <div id="win-amount" style="font-size: 40px; font-weight: 900; margin: 10px 0;">0 ⭐</div>
+        <div class="close-timer"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const socket = io();
+        tg.expand();
+
+        let myBalance = 1000;
+        let players = [];
+        let bank = 0;
+        const TAPE_LOOP_WIDTH = 1200;
+
+        // Пополнение
+        function buyStars() {
+            tg.showConfirm("Пополнить баланс на 500 ⭐?", (ok) => {
+                if(ok) { myBalance += 500; updateUI(); }
+            });
+        }
+
+        // Ставка
+        function makeBet() {
+            const val = parseInt(document.getElementById('bet-input').value);
+            if(val > myBalance || val <= 0) return tg.showAlert("Недостаточно звезд!");
+
+            myBalance -= val;
+            socket.emit('makeBet', {
+                name: tg.initDataUnsafe.user?.first_name || "Игрок",
+                photo: tg.initDataUnsafe.user?.photo_url || "https://i.pravatar.cc/100?u=" + Math.random(),
+                bet: val,
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`
+            });
+            updateUI();
+        }
+
+        // Синхронизация с сервером
+        socket.on('sync', (data) => {
+            players = data.players;
+            bank = data.bank;
+            if(!data.isSpinning) {
+                document.getElementById('win-modal').style.display = 'none';
+                document.getElementById('status-label').innerText = data.players.length < 2 ? "Ожидание игроков..." : "Призовой фонд";
+                renderTape();
+            }
+            updateUI();
+        });
+
+        socket.on('timer', (time) => {
+            document.getElementById('status-label').innerText = `Старт через ${time}с`;
+        });
+
+        socket.on('startSpin', (data) => {
+            runRoulette(data.winnerRandom, data.bank);
+        });
+
+        function updateUI() {
+            document.getElementById('my-balance').innerText = myBalance.toLocaleString();
+            document.getElementById('total-bank').innerText = bank.toLocaleString() + " ⭐";
+            document.getElementById('players-box').innerHTML = players.map(p => `
+                <div class="player-row">
+                    <img src="${p.photo}">
+                    <div class="player-name">${p.name}</div>
+                    <div class="p-bet">${p.bet} ⭐</div>
+                </div>
+            `).reverse().join('');
+        }
+
+        function renderTape() {
+            const tape = document.getElementById('tape');
+            if(players.length === 0) {
+                tape.innerHTML = '<div class="segment" style="width:100px; opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(10);
+                return;
+            }
+            const html = players.map(p => {
+                const w = (p.bet / bank) * TAPE_LOOP_WIDTH;
+                return `<div class="segment" style="width:${w}px; border-bottom: 4px solid ${p.color}"><img src="${p.photo}"></div>`;
+            }).join('');
+            tape.innerHTML = html.repeat(10);
+        }
+
+        function runRoulette(winnerRandom, currentBank) {
+            const tape = document.getElementById('tape');
+            let current = 0;
+            let winner = players[0];
+            
+            for(let p of players) {
+                current += p.bet;
+                if(winnerRandom <= current) { winner = p; break; }
+            }
+
+            const winnerIdx = players.indexOf(winner);
+            let offset = 0;
+            for(let i=0; i<winnerIdx; i++) offset += (players[i].bet / currentBank) * TAPE_LOOP_WIDTH;
+            offset += ((winner.bet / currentBank) * TAPE_LOOP_WIDTH) / 2;
+
+            const finalX = (TAPE_LOOP_WIDTH * 7) + offset - (window.innerWidth / 2);
+            tape.style.transition = 'transform 8s cubic-bezier(0.15, 0, 0.05, 1)';
+            tape.style.transform = `translateX(-${finalX}px)`;
+
+            setTimeout(() => {
+                showWinner(winner, currentBank);
+            }, 8500);
+        }
+
+        function showWinner(winner, finalBank) {
+            const winNet = Math.floor(finalBank * 0.95);
+            document.getElementById('win-img').src = winner.photo;
+            document.getElementById('win-name').innerText = winner.name;
+            document.getElementById('win-amount').innerText = winNet + " ⭐";
+            document.getElementById('win-modal').style.display = 'flex';
+            
+            if(winner.name === (tg.initDataUnsafe.user?.first_name || "Игрок")) {
+                myBalance += winNet;
+                updateUI();
+            }
+
+            // Авто-закрытие через 3 секунды
+            setTimeout(() => {
+                document.getElementById('win-modal').style.display = 'none';
+                const tape = document.getElementById('tape');
+                tape.style.transition = 'none';
+                tape.style.transform = 'translateX(0)';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
