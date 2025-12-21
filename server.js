@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
+// Токен из настроек Render
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
 const app = express();
@@ -22,11 +23,12 @@ let gameState = {
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
-    // Увеличиваем счетчик онлайна
+    // Обновляем онлайн при входе
     gameState.onlineCount = io.engine.clientsCount;
     io.emit('sync', gameState);
 
     socket.on('disconnect', () => {
+        // Обновляем онлайн при выходе
         gameState.onlineCount = io.engine.clientsCount;
         io.emit('sync', gameState);
     });
@@ -53,14 +55,12 @@ io.on('connection', (socket) => {
     socket.on('makeBet', (data) => {
         if (gameState.isSpinning) return;
 
-        // Ищем, есть ли уже такой игрок в раунде (по уникальному ID)
+        // Суммирование ставки, если игрок уже в раунде
         let existingPlayer = gameState.players.find(p => p.userId === data.userId);
 
         if (existingPlayer) {
-            // Если есть, просто прибавляем ставку
             existingPlayer.bet += data.bet;
         } else {
-            // Если нет, добавляем как нового
             gameState.players.push(data);
         }
 
@@ -90,6 +90,7 @@ function runGame() {
     gameState.isSpinning = true;
     const winnerRandom = Math.random() * gameState.bank;
     io.emit('startSpin', { winnerRandom, bank: gameState.bank });
+
     setTimeout(() => {
         gameState.players = [];
         gameState.bank = 0;
@@ -99,5 +100,8 @@ function runGame() {
     }, 14000);
 }
 
+// Исправленная строка запуска сервера
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server started` trial));
+server.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+});
