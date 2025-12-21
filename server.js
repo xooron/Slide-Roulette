@@ -14,6 +14,7 @@ const io = new Server(server);
 
 app.use(express.static(__dirname));
 
+// --- БАЗА ДАННЫХ ---
 let db = { users: {}, commissionPool: 0 };
 if (fs.existsSync(DB_PATH)) {
     try { db = JSON.parse(fs.readFileSync(DB_PATH)); } catch (e) { console.log("DB Error"); }
@@ -35,60 +36,64 @@ io.on('connection', (socket) => {
     gameState.onlineCount = io.engine.clientsCount;
     io.emit('sync', gameState);
 
+    // Авторизация
     socket.on('auth', (userData) => {
         if (!userData.id) return;
         if (!db.users[userData.id]) {
-            db.users[userData.id] = { balance: 0, username: userData.username, name: userData.name, gamesPlayed: 0 };
+            db.users[userData.id] = { balance: 0, username: userData.username, name: userData.name };
         } else {
             db.users[userData.id].username = userData.username;
             db.users[userData.id].name = userData.name;
         }
         socket.userId = userData.id;
-        socket.emit('updateUserData', db.users[userData.id]);
+        socket.emit('updateBalance', db.users[userData.id].balance);
         saveDB();
     });
 
-    // АДМИН-ФУНКЦИЯ: ВЫДАЧА ЗВЕЗД ПО USERNAME
-    socket.on('adminGiveStars', (data) => {
-        const admin = db.users[socket.userId];
-        if (!admin || admin.username !== ADMIN_USERNAME) return;
+    // Пополнение
+    socket.on('createInvoice', async (amount) => {
+        if (!BOT_TOKEN) return;
+        try {
+            const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Пополнение ${amount} ⭐`,
+                    description: `Stars Roulette Deposit`,
+                    payload: `dep_${socket.userId}`,
+                    currency: "XTR",
+                    prices: [{ label: "Stars", amount: amount }]
+                })
+            });
+            const data = await res.json();
+            if (data.ok) socket.emit('invoiceLink', { url: data.result, amount });
+        } catch (e) { console.error(e); }
+    });
 
-        const targetEntry = Object.entries(db.users).find(([id, u]) => u.username === data.targetUsername);
-        if (targetEntry) {
-            const [targetId, targetUser] = targetEntry;
-            db.users[targetId].balance += parseInt(data.amount);
+    socket.on('paymentSuccess', (amount) => {
+        if (socket.userId && db.users[socket.userId]) {
+            db.users[socket.userId].balance += amount;
             saveDB();
-            io.to(io.sockets.get(targetId)).emit('updateUserData', db.users[targetId]); // если в сети
-            socket.emit('notify', `Выдано ${data.amount} ⭐ пользователю @${data.targetUsername}`);
-        } else {
-            socket.emit('error', "Пользователь не найден в базе");
+            socket.emit('updateBalance', db.users[socket.userId].balance);
         }
     });
 
-    // АДМИН-ФУНКЦИЯ: ДОБАВЛЕНИЕ БОТА
-    socket.on('adminAddBot', () => {
-        const admin = db.users[socket.userId];
-        if (!admin || admin.username !== ADMIN_USERNAME || gameState.isSpinning) return;
+    // ВЫВОД (МИН 1000)
+    socket.on('withdrawRequest', (amount) => {
+        if (!socket.userId || !db.users[socket.userId]) return;
+        let user = db.users[socket.userId];
+        if (amount < 1000) return socket.emit('error', "Минимум для вывода: 1000 ⭐");
+        if (user.balance < amount) return socket.emit('error', "Недостаточно звезд!");
 
-        const botBet = Math.floor(Math.random() * (200 - 50 + 1)) + 50;
-        const botId = "bot_" + Math.random().toString(36).substr(2, 9);
-        const botNames = ["SnowLeo", "IceKing", "Frosty", "SantaBet", "WinterPro", "Glacier"];
-        const botName = botNames[Math.floor(Math.random() * botNames.length)];
+        user.balance -= amount;
+        saveDB();
+        socket.emit('updateBalance', user.balance);
 
-        gameState.players.push({
-            userId: botId,
-            name: "[BOT] " + botName,
-            photo: `https://ui-avatars.com/api/?name=${botName}&background=random`,
-            bet: botBet,
-            color: `hsl(${Math.random() * 360}, 70%, 60%)`,
-            isBot: true
-        });
-
-        gameState.bank += botBet;
-        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
-        io.emit('sync', gameState);
+        console.log(`\n💰 ЗАЯВКА НА ВЫВОД: @${user.username} - ${amount} ⭐ (ID: ${socket.userId})\n`);
+        socket.emit('notify', "Заявка принята! Ожидайте перевод от @maesexs.");
     });
 
+    // Ставка (Суммирование)
     socket.on('makeBet', (data) => {
         if (gameState.isSpinning) return;
         let user = db.users[socket.userId];
@@ -107,7 +112,15 @@ io.on('connection', (socket) => {
         
         saveDB();
         io.emit('sync', gameState);
-        socket.emit('updateUserData', user);
+        socket.emit('updateBalance', user.balance);
+    });
+
+    socket.on('adminFreeStars', () => {
+        if (socket.userId && db.users[socket.userId].username === ADMIN_USERNAME) {
+            db.users[socket.userId].balance += 500;
+            saveDB();
+            socket.emit('updateBalance', db.users[socket.userId].balance);
+        }
     });
 
     socket.on('disconnect', () => {
@@ -143,29 +156,17 @@ function runGame() {
             if (winnerRandom <= current) { winner = p; break; }
         }
 
-        const commission = Math.floor(currentBank * 0.05);
+        const commission = Math.floor(currentBank * 0.05); // 5% тебе
         const winAmount = currentBank - commission;
         db.commissionPool += commission;
 
-        // Обновляем статистику всем участникам
-        gameState.players.forEach(p => {
-            if (!p.isBot && db.users[p.userId]) {
-                db.users[p.userId].gamesPlayed++;
-            }
-        });
-
-        if (!winner.isBot && db.users[winner.userId]) {
+        if (db.users[winner.userId]) {
             db.users[winner.userId].balance += winAmount;
         }
 
         saveDB();
         io.emit('winnerUpdate', { userId: winner.userId, winAmount, winner });
         
-        // Отправляем обновленные данные пользователям
-        gameState.players.forEach(p => {
-            if (!p.isBot) io.emit('updateUserDataTrigger', {id: p.userId, data: db.users[p.userId]});
-        });
-
         gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
         io.emit('sync', gameState);
     }, 14000);
