@@ -54,7 +54,6 @@ io.on('connection', (socket) => {
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (!admin || admin.username !== ADMIN_USERNAME) return;
-        
         const target = await User.findOneAndUpdate(
             { username: data.targetUsername.replace('@', '') },
             { $inc: { balance: parseInt(data.amount) } },
@@ -63,16 +62,13 @@ io.on('connection', (socket) => {
         if (target) {
             socket.emit('notify', `Выдано ${data.amount} ⭐ @${target.username}`);
             io.emit('updateUserDataTrigger', { id: target.userId, data: target });
-        } else {
-            socket.emit('error', "Юзер не найден");
         }
     });
 
     socket.on('adminAddBot', () => {
         const botBet = Math.floor(Math.random() * 150) + 50;
-        const botId = "bot_" + Math.random();
         gameState.players.push({ 
-            userId: botId, 
+            userId: "bot_" + Math.random(), 
             name: "Bot_" + Math.random().toString(36).substr(2,3), 
             photo: `https://ui-avatars.com/api/?background=random&name=B`, 
             bet: botBet, 
@@ -121,7 +117,6 @@ function runGame() {
     const bank = gameState.bank;
     const winnerRandom = Math.random() * bank;
     
-    // Сначала считаем победителя для отправки всем
     let current = 0; let winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
@@ -137,7 +132,6 @@ function runGame() {
 
         io.emit('winnerUpdate', { userId: winner.userId, winAmount, winner });
         
-        // Массовое обновление балансов
         for(let id of ids) {
             const u = await User.findOne({ userId: id });
             io.emit('updateUserDataTrigger', { id: u.userId, data: u });
@@ -145,8 +139,8 @@ function runGame() {
 
         gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
         io.emit('sync', gameState);
-    }, 14500); // 13 сек крутка + запас
+    }, 14500); 
 }
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`Server Live`));
+server.listen(PORT, () => console.log(`Server started`));
