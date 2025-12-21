@@ -7,57 +7,42 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root {
-            --tg-bg: #0a0a0c;
-            --gold: linear-gradient(135deg, #ffcf33, #ff9500);
-            --star: #ffd700;
-            --hint: #a1a1a6;
-            --glass: rgba(255, 255, 255, 0.07);
-        }
+        :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.07); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; outline: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-
+        
         .top-nav { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
         .chip { background: var(--glass); padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; font-size: 14px; display: flex; gap: 6px; }
-        .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; cursor: pointer; transition: 0.2s; }
-        .btn-plus:active { transform: scale(0.9); }
+        .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; cursor: pointer; }
 
         .main-header { text-align: center; padding-top: 15px; flex-shrink: 0; }
         .bank-val { font-size: 42px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 5px 0; }
-
-        /* Рулетка */
+        
         .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); }
-        
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; }
-        
-        /* Плавный медленный дрейф во время ожидания */
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
-
+        
         .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.1); }
 
-        .bet-form { padding: 10px 16px; flex-shrink: 0; }
-        .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); }
+        .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); margin: 0 16px; flex-shrink: 0; }
         .bet-input-box input { flex: 1; background: none; border: none; color: white; padding-left: 10px; font-size: 18px; font-weight: bold; }
-        
-        .btn-premium { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; transition: 0.2s; }
-        .btn-premium:active { transform: scale(0.95); }
+        .btn-bet { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; }
 
-        .players-list { flex: 1; overflow-y: auto; padding: 0 16px; margin-bottom: 75px; }
-        .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin-bottom: 8px; border-radius: 15px; transition: 0.3s; }
+        .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin: 8px 16px; border-radius: 15px; }
         .chance-tag { font-size: 10px; background: rgba(255,215,0,0.15); color: var(--star); padding: 4px 8px; border-radius: 8px; margin-left: auto; font-weight: 900; }
 
         .nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 12px; }
         .nav-btn.active { color: var(--star); }
 
-        /* Модалка победителя */
-        .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20, 20, 25, 0.98); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 215, 0, 0.4); display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(250%); transition: transform 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.2); box-shadow: 0 15px 50px rgba(0,0,0,0.9); }
+        .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20, 20, 25, 0.98); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 215, 0, 0.4); display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(250%); transition: transform 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.2); }
         .modal-win.show { display: flex; transform: translateY(0); }
-
         .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .input-dark { width: 100%; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; color: white; text-align: center; font-size: 20px; margin: 15px 0; }
+        
         .page { display: none; flex-direction: column; height: 100%; overflow: hidden; }
         .page.active { display: flex; }
     </style>
@@ -72,42 +57,33 @@
                 <button class="btn-plus" onclick="openDeposit()">+</button>
             </div>
         </div>
-
         <div class="main-header">
             <h1 style="font-size:10px; color:var(--hint); letter-spacing:2px; margin:0;">ОБЩИЙ БАНК</h1>
             <div class="bank-val" id="bank-val">0 ⭐</div>
-            <div id="timer-label" style="font-size:11px; color:var(--hint); font-weight:bold;">ОЖИДАНИЕ СТАВОК...</div>
+            <div id="timer-label" style="font-size:11px; color:var(--hint);">ОЖИДАНИЕ СТАВОК...</div>
         </div>
-
-        <div class="roulette-wrap">
-            <div class="pointer"></div>
-            <div id="tape" class="tape slow-drift"></div>
+        <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
+        <div class="bet-input-box">
+            <input type="number" id="bet-input" value="10" inputmode="numeric">
+            <button class="btn-bet" onclick="makeBet()">СТАВКА</button>
         </div>
-
-        <div class="bet-form">
-            <div class="bet-input-box">
-                <input type="number" id="bet-input" value="10" inputmode="numeric">
-                <button class="btn-premium" onclick="makeBet()">СТАВКА</button>
-            </div>
-        </div>
-
-        <div id="players-list" class="players-list"></div>
+        <div id="players-list" style="flex:1; overflow-y:auto; padding-top:10px; margin-bottom:75px;"></div>
     </div>
 
     <div id="profile-page" class="page">
         <div style="padding:40px 20px; text-align:center;">
-            <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:3px solid var(--star); margin-bottom:15px;">
+            <img id="p-ava" src="" style="width:110px; border-radius:50%; border:3px solid var(--star); margin-bottom:15px;">
             <h2 id="p-name" style="margin:0">Загрузка...</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:30px;">
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-bal" style="color:var(--star); font-size:24px;">0</b><br><small>БАЛАНС</small></div>
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-games" style="color:var(--star); font-size:24px;">0</b><br><small>ИГРЫ</small></div>
             </div>
-            <button class="btn-premium" onclick="openModal('withdraw-modal')" style="width:100%; margin-top:20px; background:rgba(255,255,255,0.05); color:white;">ВЫВЕСТИ ⭐</button>
+            <button class="btn-bet" onclick="openModal('withdraw-modal')" style="width:100%; margin-top:20px; background:rgba(255,255,255,0.05); color:white;">ВЫВЕСТИ ⭐</button>
             <div id="admin-p" style="display:none; margin-top:30px; padding:20px; border:1px dashed gold; border-radius:20px;">
-                <input type="text" id="adm-user" placeholder="@username" style="width:100%; background:var(--glass); border:none; padding:12px; border-radius:12px; color:white; margin-bottom:10px;">
-                <input type="number" id="adm-amt" placeholder="Сумма" style="width:100%; background:var(--glass); border:none; padding:12px; border-radius:12px; color:white; margin-bottom:10px;">
-                <button class="btn-premium" style="width:100%" onclick="adminGive()">ВЫДАТЬ ⭐</button>
-                <button class="btn-premium" style="width:100%; background:#222; margin-top:10px;" onclick="socket.emit('adminAddBot')">БОТ</button>
+                <input type="text" id="adm-user" placeholder="@username" class="input-dark" style="font-size:14px;">
+                <input type="number" id="adm-amt" placeholder="Сумма" class="input-dark" style="font-size:14px; margin-top:0;">
+                <button class="btn-bet" style="width:100%" onclick="adminGive()">ВЫДАТЬ ⭐</button>
+                <button class="btn-bet" style="width:100%; background:#222; margin-top:10px;" onclick="socket.emit('adminAddBot')">БОТ</button>
             </div>
         </div>
     </div>
@@ -123,22 +99,22 @@
         <div id="win-x" style="background:var(--gold); color:black; padding:5px 10px; border-radius:10px; font-weight:900;">x1.0</div>
     </div>
 
-    <!-- Модалки -->
     <div id="buy-modal" class="modal-basic">
         <h2>Пополнить</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
-            <button class="btn-premium" onclick="socket.emit('createInvoice', 100)">100 ⭐</button>
-            <button class="btn-premium" onclick="socket.emit('createInvoice', 500)">500 ⭐</button>
-            <button class="btn-premium" onclick="socket.emit('createInvoice', 1000)">1000 ⭐</button>
-            <button class="btn-premium" onclick="socket.emit('createInvoice', 5000)">5000 ⭐</button>
+            <button class="btn-bet" onclick="socket.emit('createInvoice', 100)">100 ⭐</button>
+            <button class="btn-bet" onclick="socket.emit('createInvoice', 500)"> 500 ⭐</button>
+            <button class="btn-bet" onclick="socket.emit('createInvoice', 1000)">1000 ⭐</button>
+            <button class="btn-bet" onclick="socket.emit('createInvoice', 5000)">5000 ⭐</button>
         </div>
         <div onclick="closeModal('buy-modal')" style="margin-top:20px; color:gray;">Отмена</div>
     </div>
 
     <div id="withdraw-modal" class="modal-basic">
-        <h2>Вывод</h2>
-        <input type="number" id="w-amt" placeholder="Сумма" style="width:100%; background:var(--glass); border:none; padding:15px; border-radius:15px; color:white; text-align:center; font-size:24px; margin-bottom:20px;">
-        <button class="btn-premium" style="width:100%" onclick="withdraw()">ОТПРАВИТЬ</button>
+        <h2>Вывод звезд</h2>
+        <p style="color:gray; font-size:12px;">Минимум 1000 ⭐</p>
+        <input type="number" id="w-amt" placeholder="Сумма" class="input-dark">
+        <button class="btn-bet" style="width:100%" onclick="withdraw()">ОТПРАВИТЬ</button>
         <div onclick="closeModal('withdraw-modal')" style="margin-top:20px; color:gray;">Закрыть</div>
     </div>
 
@@ -147,6 +123,7 @@
         let me = {}; let isSpinningLocal = false;
 
         socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name });
+        
         socket.on('updateUserData', (data) => { me = data; updateUI(); });
         socket.on('updateUserDataTrigger', (p) => { if(p.id == tg.initDataUnsafe.user?.id) { me = p.data; updateUI(); } });
 
@@ -179,50 +156,42 @@
         function withdraw() { socket.emit('withdrawRequest', parseInt(document.getElementById('w-amt').value)); closeModal('withdraw-modal'); }
 
         socket.on('sync', (data) => {
-            if(isSpinningLocal) return; // Блокируем обновление во время крутки
+            if(isSpinningLocal) return;
             document.getElementById('online-count').innerText = data.onlineCount;
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
-            
             const tape = document.getElementById('tape');
-            if(data.bank > 0) {
+            if(data.bank > 0) { 
+                tape.classList.add('slow-drift');
                 renderTape(data.players, data.bank);
-            } else {
-                renderEmptyTape();
+            } else { 
+                tape.classList.add('slow-drift');
+                renderEmptyTape(); 
                 document.getElementById('timer-label').innerText = "ОЖИДАНИЕ СТАВОК...";
                 tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             }
-
             document.getElementById('players-list').innerHTML = data.players.map(p => {
                 const chance = ((p.bet / (data.bank || 1)) * 100).toFixed(1);
                 return `<div class="player-row"><img src="${p.photo}" style="width:38px; height:38px; border-radius:12px; margin-right:15px;"><div style="flex:1; font-weight:700;">${p.name}</div><div style="color:var(--star); font-weight:900;">${p.bet.toLocaleString()} ⭐</div><span class="chance-tag">${chance}%</span></div>`;
             }).join('');
         });
 
-        function renderEmptyTape() {
-            const tape = document.getElementById('tape');
-            tape.innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(30);
-        }
+        function renderEmptyTape() { document.getElementById('tape').innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(30); }
 
         function renderTape(players, bank) {
-            const tape = document.getElementById('tape');
             let pool = [];
             players.forEach(p => {
                 let count = Math.max(Math.round((p.bet / bank) * 15), 1);
                 for(let i=0; i<count; i++) pool.push(`<div class="segment" style="border-bottom:4px solid ${p.color}"><img src="${p.photo}"></div>`);
             });
-            tape.innerHTML = pool.join('') + pool.join('') + pool.join('') + pool.join('');
+            document.getElementById('tape').innerHTML = pool.join('') + pool.join('') + pool.join('') + pool.join('');
         }
 
-        socket.on('timer', (t) => { 
-            if(!isSpinningLocal) document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; 
-        });
+        socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; });
 
         socket.on('startSpin', (data) => {
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
-            
-            // Генерируем фиксированную ленту от сервера
             tape.innerHTML = data.tapeLayout.map(cell => `<div class="segment" style="border-bottom:4px solid ${cell.color}"><img src="${cell.photo}"></div>`).join('');
             
             const nodes = Array.from(tape.children);
@@ -237,23 +206,14 @@
 
         socket.on('winnerUpdate', (data) => {
             const winX = (data.winAmount / data.winnerBet).toFixed(1);
-            document.getElementById('win-ava').src = data.winner.photo;
-            document.getElementById('win-n').innerText = data.winner.name;
-            document.getElementById('win-a').innerText = data.winAmount.toLocaleString();
-            document.getElementById('win-x').innerText = `x${winX}`;
-            
-            const m = document.getElementById('win-modal');
-            m.style.display = 'flex';
-            setTimeout(() => m.classList.add('show'), 50);
-
+            document.getElementById('win-ava').src = data.winner.photo; document.getElementById('win-n').innerText = data.winner.name;
+            document.getElementById('win-a').innerText = data.winAmount.toLocaleString(); document.getElementById('win-x').innerText = `x${winX}`;
+            const m = document.getElementById('win-modal'); m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 50);
             setTimeout(() => {
                 m.classList.remove('show');
                 setTimeout(() => { 
-                    m.style.display = 'none'; 
-                    isSpinningLocal = false; 
-                    renderEmptyTape(); 
-                    const tape = document.getElementById('tape');
-                    tape.classList.add('slow-drift');
+                    m.style.display = 'none'; isSpinningLocal = false; renderEmptyTape(); 
+                    const tape = document.getElementById('tape'); tape.classList.add('slow-drift');
                     tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
                 }, 600);
             }, 5000);
