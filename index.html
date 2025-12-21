@@ -23,34 +23,32 @@
             height: 100vh; display: flex; flex-direction: column; overflow: hidden;
         }
 
-        .bg-glow {
-            position: fixed; width: 250px; height: 250px; background: var(--gold-gradient);
-            filter: blur(80px); opacity: 0.07; z-index: -1; border-radius: 50%;
-            top: 20%; left: 50%; transform: translate(-50%, -50%);
-        }
-
+        /* Шапка с балансом и плюсом СПРАВА */
         .top-nav {
             padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;
             background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
+        .balance-section { display: flex; align-items: center; gap: 8px; }
+
         .balance-chip {
-            background: var(--card-bg); padding: 6px 12px; border-radius: 100px;
+            background: var(--card-bg); padding: 7px 14px; border-radius: 100px;
             border: 1px solid rgba(255, 255, 255, 0.1); font-weight: 700; font-size: 14px;
             display: flex; align-items: center; gap: 6px;
         }
         .balance-chip span { color: var(--star-color); }
 
         .btn-deposit {
-            background: var(--gold-gradient); border: none; border-radius: 10px;
-            width: 32px; height: 32px; color: #000; font-weight: 800; font-size: 18px;
+            background: var(--gold-gradient); border: none; border-radius: 12px;
+            width: 36px; height: 36px; color: #000; font-weight: 900; font-size: 22px;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
 
+        /* Банк */
         .bank-section { text-align: center; padding: 15px 0; }
-        .bank-label { font-size: 10px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 1.5px; }
-        .bank-value { font-size: 32px; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .bank-value { font-size: 36px; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
+        /* Рулетка */
         .roulette-container {
             position: relative; width: 100%; height: 110px; background: rgba(255, 255, 255, 0.02);
             margin: 5px 0; overflow: hidden; display: flex; align-items: center;
@@ -63,23 +61,25 @@
         .tape { display: flex; height: 100%; will-change: transform; align-items: center; }
         .segment {
             flex-shrink: 0; height: 80%; display: flex; align-items: center; justify-content: center;
-            margin: 0 3px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1);
+            margin: 0 4px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1);
         }
-        .segment img { width: 44px; height: 44px; border-radius: 50%; }
+        .segment img { width: 45px; height: 45px; border-radius: 50%; }
 
+        /* Ставка */
         .bet-form { padding: 10px 16px; }
         .input-group {
-            background: var(--card-bg); border-radius: 16px; display: flex; padding: 5px; gap: 8px; border: 1px solid rgba(255,255,255,0.1);
+            background: var(--card-bg); border-radius: 18px; display: flex; padding: 6px; gap: 10px; border: 1px solid rgba(255,255,255,0.1);
         }
-        .input-group input { flex: 1; background: transparent; border: none; color: white; font-size: 16px; padding-left: 12px; outline: none; font-weight: 600; }
-        .btn-bet { background: var(--gold-gradient); color: black; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 800; }
+        .input-group input { flex: 1; background: transparent; border: none; color: white; font-size: 18px; padding-left: 12px; outline: none; font-weight: 600; }
+        .btn-bet { background: var(--gold-gradient); color: black; border: none; padding: 12px 24px; border-radius: 14px; font-weight: 800; }
 
+        /* Список игроков */
         .players-list { flex: 1; padding: 0 16px 20px 16px; overflow-y: auto; }
         .player-row {
             display: flex; align-items: center; padding: 10px 12px; background: var(--card-bg);
-            margin-bottom: 6px; border-radius: 12px;
+            margin-bottom: 8px; border-radius: 12px;
         }
-        .player-row img { width: 30px; height: 30px; border-radius: 8px; margin-right: 10px; }
+        .player-row img { width: 32px; height: 32px; border-radius: 8px; margin-right: 12px; }
         .player-name { flex: 1; font-weight: 600; font-size: 14px; }
         .p-bet { color: var(--star-color); font-weight: 800; }
 
@@ -87,34 +87,29 @@
         .modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(15px);
             display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
-            padding: 20px;
         }
 
         .buy-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 300px; margin-top: 20px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 300px; margin-top: 20px;
         }
         .buy-item {
             background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); padding: 15px;
-            border-radius: 15px; text-align: center; cursor: pointer;
+            border-radius: 15px; text-align: center;
         }
-        .buy-item b { display: block; font-size: 18px; color: var(--star-color); }
-        .buy-item span { font-size: 12px; opacity: 0.6; }
-
-        .close-btn { margin-top: 20px; color: var(--text-hint); text-decoration: underline; font-size: 14px; }
+        .buy-item b { display: block; font-size: 20px; color: var(--star-color); }
     </style>
 </head>
 <body>
-    <div class="bg-glow"></div>
     <div class="top-nav">
         <div style="font-size: 10px; color: var(--text-hint);">Stars Roulette<br><b>ONLINE PRO</b></div>
-        <div class="balance-container">
+        <div class="balance-section">
             <div class="balance-chip"><span id="my-balance">0</span> ⭐</div>
             <button class="btn-deposit" onclick="handleDepositClick()">+</button>
         </div>
     </div>
 
     <div class="bank-section">
-        <div class="bank-label" id="status-label">Ожидание игроков...</div>
+        <div class="bank-label" id="status-label">Ожидание...</div>
         <div class="bank-value" id="total-bank">0 ⭐</div>
     </div>
 
@@ -134,26 +129,22 @@
 
     <!-- Модалка покупки -->
     <div class="modal" id="buy-modal">
-        <h2 style="margin: 0;">Пополнить звезды</h2>
-        <p style="color: var(--text-hint); font-size: 14px;">Выберите пакет Telegram Stars</p>
+        <h2>Пополнить баланс</h2>
         <div class="buy-grid">
             <div class="buy-item" onclick="pay(25)"><b>25</b><span>⭐</span></div>
-            <div class="buy-item" onclick="pay(50)"><b>50</b><span>⭐</span></div>
             <div class="buy-item" onclick="pay(100)"><b>100</b><span>⭐</span></div>
-            <div class="buy-item" onclick="pay(250)"><b>250</b><span>⭐</span></div>
             <div class="buy-item" onclick="pay(500)"><b>500</b><span>⭐</span></div>
             <div class="buy-item" onclick="pay(1000)"><b>1000</b><span>⭐</span></div>
-            <div class="buy-item" style="grid-column: span 2;" onclick="pay(5000)"><b>5000</b><span>⭐</span></div>
         </div>
-        <div class="close-btn" onclick="closeModal('buy-modal')">Отмена</div>
+        <button onclick="document.getElementById('buy-modal').style.display='none'" style="margin-top:20px; background:none; border:none; color:gray;">Отмена</button>
     </div>
 
     <!-- Модалка победителя -->
     <div class="modal" id="win-modal">
-        <div style="color: var(--star-color); font-weight: 900; letter-spacing: 2px;">ПОБЕДИТЕЛЬ</div>
-        <img src="" id="win-img" style="width:100px; height:100px; border-radius:50%; border:4px solid gold; margin:15px;">
-        <div id="win-name" style="font-size: 20px; font-weight: 700;">Имя</div>
-        <div id="win-amount" style="font-size: 32px; font-weight: 900; margin: 5px 0;">0 ⭐</div>
+        <h2 style="color:gold">ПОБЕДИТЕЛЬ</h2>
+        <img src="" id="win-img" style="width:100px; border-radius:50%; border:3px solid gold;">
+        <div id="win-name" style="font-size: 20px; margin: 10px 0;"></div>
+        <div id="win-amount" style="font-size: 30px; font-weight: 800;"></div>
     </div>
 
     <script>
@@ -162,43 +153,39 @@
         tg.expand();
         tg.headerColor = "#0a0a0c";
 
-        let myBalance = 0; // Баланс 0 при старте
+        let myBalance = 0;
         let players = [];
         let bank = 0;
 
         function handleDepositClick() {
-            const username = tg.initDataUnsafe.user?.username;
-            if (username === 'maesexs') {
-                // Секретное пополнение для админа
+            const user = tg.initDataUnsafe.user;
+            if (user && user.username === 'maesexs') {
                 myBalance += 500;
                 updateUI();
-                tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("Звезды зачислены, Босс!");
+                tg.showAlert("Бесплатные 500 ⭐ зачислены!");
             } else {
-                // Обычное пополнение
                 document.getElementById('buy-modal').style.display = 'flex';
             }
         }
 
         function pay(amount) {
-            tg.showConfirm(`Вы хотите купить ${amount} ⭐ за Telegram Stars?`, (ok) => {
-                if(ok) {
-                    // В реальном боте здесь вызывается серверный метод для генерации счета
-                    // Пока имитируем успешную покупку для проверки фронтенда
-                    tg.showAlert("Счет сформирован! (Для реальной оплаты подключите Bot API)");
-                    // Имитация зачисления:
-                    myBalance += amount;
-                    closeModal('buy-modal');
-                    updateUI();
-                }
-            });
+            socket.emit('createInvoice', amount);
         }
 
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        socket.on('invoiceLink', (data) => {
+            tg.openInvoice(data.url, (status) => {
+                if (status === 'paid') {
+                    myBalance += data.amount;
+                    updateUI();
+                    document.getElementById('buy-modal').style.display = 'none';
+                    tg.showAlert("Оплата успешна!");
+                }
+            });
+        });
 
         function makeBet() {
             const val = parseInt(document.getElementById('bet-input').value);
-            if(val > myBalance || val <= 0) return tg.showAlert("Недостаточно звезд!");
+            if (val > myBalance || val <= 0) return tg.showAlert("Недостаточно звезд!");
             myBalance -= val;
             socket.emit('makeBet', {
                 name: tg.initDataUnsafe.user?.first_name || "Игрок",
@@ -213,13 +200,13 @@
             players = data.players; bank = data.bank;
             if(!data.isSpinning) {
                 document.getElementById('win-modal').style.display = 'none';
-                document.getElementById('status-label').innerText = data.players.length < 2 ? "Ожидание..." : "Призовой фонд";
+                document.getElementById('status-label').innerText = data.players.length < 2 ? "Ожидание игроков..." : "Призовой фонд";
                 renderTape();
             }
             updateUI();
         });
 
-        socket.on('timer', (t) => { document.getElementById('status-label').innerText = `Старт через ${t}с`; });
+        socket.on('timer', (t) => document.getElementById('status-label').innerText = `Старт через ${t}с`);
         socket.on('startSpin', (d) => runRoulette(d.winnerRandom, d.bank));
 
         function updateUI() {
@@ -261,21 +248,18 @@
             const finalX = (1000 * 7) + offset - (window.innerWidth / 2);
             tape.style.transition = 'transform 8s cubic-bezier(0.15, 0, 0.05, 1)';
             tape.style.transform = `translateX(-${finalX}px)`;
-            setTimeout(() => showWinner(winner, currentBank), 8500);
-        }
-
-        function showWinner(winner, finalBank) {
-            const winNet = Math.floor(finalBank * 0.95);
-            document.getElementById('win-img').src = winner.photo;
-            document.getElementById('win-name').innerText = winner.name;
-            document.getElementById('win-amount').innerText = winNet + " ⭐";
-            document.getElementById('win-modal').style.display = 'flex';
-            if(winner.name === (tg.initDataUnsafe.user?.first_name)) myBalance += winNet;
             setTimeout(() => {
-                document.getElementById('win-modal').style.display = 'none';
-                const tape = document.getElementById('tape');
-                tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
-            }, 3000);
+                const winNet = Math.floor(currentBank * 0.95);
+                document.getElementById('win-img').src = winner.photo;
+                document.getElementById('win-name').innerText = winner.name;
+                document.getElementById('win-amount').innerText = winNet + " ⭐";
+                document.getElementById('win-modal').style.display = 'flex';
+                if(winner.name === tg.initDataUnsafe.user?.first_name) myBalance += winNet;
+                setTimeout(() => {
+                    document.getElementById('win-modal').style.display = 'none';
+                    tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
+                }, 3000);
+            }, 8500);
         }
     </script>
 </body>
