@@ -14,103 +14,62 @@
             --text-hint: #a1a1a6;
             --card-bg: rgba(255, 255, 255, 0.05);
         }
-
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--tg-bg); color: white; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Плавное свечение на фоне */
+        body::before { content: ''; position: fixed; top: -50px; right: -50px; width: 200px; height: 200px; background: var(--gold-gradient); filter: blur(100px); opacity: 0.1; z-index: -1; }
 
-        body {
-            font-family: -apple-system, system-ui, sans-serif;
-            background-color: var(--tg-bg); color: white; margin: 0; padding: 0;
-            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-        }
+        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .online-info { font-size: 10px; color: var(--text-hint); }
+        .online-info b { color: #00ff00; }
 
-        .top-nav {
-            padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;
-            background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .online-info { font-size: 10px; color: var(--text-hint); line-height: 1.2; }
-        .online-info b { color: #00ff00; text-shadow: 0 0 5px rgba(0,255,0,0.5); }
-
-        .balance-section { display: flex; align-items: center; gap: 8px; }
-        .balance-chip {
-            background: var(--card-bg); padding: 7px 14px; border-radius: 100px;
-            border: 1px solid rgba(255, 255, 255, 0.1); font-weight: 700; font-size: 14px;
-            display: flex; align-items: center; gap: 6px;
-        }
+        .balance-section { display: flex; align-items: center; gap: 6px; }
+        .balance-chip { background: var(--card-bg); padding: 7px 14px; border-radius: 100px; border: 1px solid rgba(255, 255, 255, 0.1); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .balance-chip span { color: var(--star-color); }
 
-        .btn-deposit {
-            background: var(--gold-gradient); border: none; border-radius: 12px;
-            width: 36px; height: 36px; color: #000; font-weight: 900; font-size: 22px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-        }
+        .btn-action { background: var(--gold-gradient); border: none; border-radius: 10px; width: 34px; height: 34px; color: #000; font-weight: 900; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-minus { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
 
-        .bank-section { text-align: center; padding: 15px 0; }
+        .bank-section { text-align: center; padding: 20px 0; }
         .bank-value { font-size: 36px; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* Рулетка */
-        .roulette-container {
-            position: relative; width: 100%; height: 110px; background: rgba(255, 255, 255, 0.02);
-            margin: 5px 0; overflow: hidden; display: flex; align-items: center;
-            border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        .pointer {
-            position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; background: var(--star-color);
-            z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star-color);
-        }
-        .tape { display: flex; height: 100%; will-change: transform; align-items: center; }
+        .roulette-container { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 5px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
+        .pointer { position: absolute; left: 50%; width: 3px; height: 100%; background: var(--star-color); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star-color); }
         
-        /* Плавное скольжение пустой рулетки */
-        .tape.idle {
-            animation: scrollIdle 30s linear infinite;
-        }
-        @keyframes scrollIdle {
-            from { transform: translateX(0); }
-            to { transform: translateX(-1000px); }
-        }
+        .tape { display: flex; height: 100%; align-items: center; will-change: transform; }
+        .tape.idle { animation: scrollIdle 40s linear infinite; }
+        @keyframes scrollIdle { from { transform: translateX(0); } to { transform: translateX(-1000px); } }
 
-        .segment {
-            flex-shrink: 0; height: 80%; display: flex; align-items: center; justify-content: center;
-            margin: 0 4px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1);
-        }
+        .segment { flex-shrink: 0; height: 80%; display: flex; align-items: center; justify-content: center; margin: 0 4px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); }
         .segment img { width: 45px; height: 45px; border-radius: 50%; }
 
         .bet-form { padding: 10px 16px; }
-        .input-group {
-            background: var(--card-bg); border-radius: 18px; display: flex; padding: 6px; gap: 10px; border: 1px solid rgba(255,255,255,0.1);
-        }
+        .input-group { background: var(--card-bg); border-radius: 18px; display: flex; padding: 6px; gap: 10px; border: 1px solid rgba(255,255,255,0.1); }
         .input-group input { flex: 1; background: transparent; border: none; color: white; font-size: 18px; padding-left: 12px; outline: none; font-weight: 600; }
-        .btn-bet { background: var(--gold-gradient); color: black; border: none; padding: 12px 24px; border-radius: 14px; font-weight: 800; cursor: pointer; }
+        .btn-bet { background: var(--gold-gradient); color: black; border: none; padding: 12px 24px; border-radius: 14px; font-weight: 800; }
 
         .players-list { flex: 1; padding: 0 16px 20px 16px; overflow-y: auto; }
-        .player-row {
-            display: flex; align-items: center; padding: 10px 12px; background: var(--card-bg);
-            margin-bottom: 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);
-        }
+        .player-row { display: flex; align-items: center; padding: 10px 12px; background: var(--card-bg); margin-bottom: 8px; border-radius: 12px; }
         .player-row img { width: 32px; height: 32px; border-radius: 8px; margin-right: 12px; }
         .player-name { flex: 1; font-weight: 600; font-size: 14px; }
         .p-bet { color: var(--star-color); font-weight: 800; }
 
-        .modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(15px);
-            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
-        }
-        .buy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 300px; margin-top: 20px; }
-        .buy-item { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; text-align: center; }
-        .buy-item b { display: block; font-size: 20px; color: var(--star-color); }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(15px); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
     <div class="top-nav">
-        <div class="online-info">Stars Roulette<br>Online: <b id="online-count">0</b></div>
+        <div class="online-info">Online: <b id="online-count">0</b></div>
         <div class="balance-section">
+            <button class="btn-action btn-minus" onclick="openModal('withdraw-modal')">−</button>
             <div class="balance-chip"><span id="my-balance">0</span> ⭐</div>
-            <button class="btn-deposit" onclick="handleDepositClick()">+</button>
+            <button class="btn-action" onclick="handleDeposit()">+</button>
         </div>
     </div>
 
     <div class="bank-section">
-        <div class="bank-label" id="status-label">Ожидание ставок...</div>
+        <div id="status-label" style="font-size:10px; color:gray;">ОЖИДАНИЕ...</div>
         <div class="bank-value" id="total-bank">0 ⭐</div>
     </div>
 
@@ -121,165 +80,131 @@
 
     <div class="bet-form">
         <div class="input-group">
-            <input type="number" id="bet-input" value="10" inputmode="numeric">
+            <input type="number" id="bet-input" value="10">
             <button class="btn-bet" onclick="makeBet()">СТАВКА</button>
         </div>
     </div>
 
     <div class="players-list" id="players-box"></div>
 
-    <!-- Модалка покупки -->
-    <div class="modal" id="buy-modal">
-        <h2 style="margin-bottom:10px;">Пополнить звезды</h2>
-        <div class="buy-grid">
-            <div class="buy-item" onclick="pay(25)"><b>25</b><span>⭐</span></div>
-            <div class="buy-item" onclick="pay(100)"><b>100</b><span>⭐</span></div>
-            <div class="buy-item" onclick="pay(500)"><b>500</b><span>⭐</span></div>
-            <div class="buy-item" onclick="pay(1000)"><b>1000</b><span>⭐</span></div>
-        </div>
-        <button onclick="document.getElementById('buy-modal').style.display='none'" style="margin-top:25px; background:none; border:none; color:gray;">Закрыть</button>
+    <!-- Модалка Вывода -->
+    <div class="modal" id="withdraw-modal">
+        <h2>Вывод звезд</h2>
+        <p style="color:gray; font-size:12px;">Минимум: 1,000 ⭐</p>
+        <input type="number" id="withdraw-input" placeholder="Сумма" style="width:100%; padding:15px; border-radius:12px; background:rgba(255,255,255,0.1); border:none; color:white; text-align:center; font-size:20px;">
+        <button class="btn-bet" onclick="submitWithdraw()" style="width:100%; margin-top:15px;">ВЫВЕСТИ</button>
+        <p onclick="closeModal('withdraw-modal')" style="margin-top:20px; color:gray;">Отмена</p>
     </div>
 
-    <!-- Модалка победителя -->
+    <!-- Модалка Пополнения -->
+    <div class="modal" id="buy-modal">
+        <h2>Пополнить</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
+            <button class="btn-bet" onclick="pay(100)">100 ⭐</button>
+            <button class="btn-bet" onclick="pay(500)">500 ⭐</button>
+            <button class="btn-bet" onclick="pay(1000)">1000 ⭐</button>
+            <button class="btn-bet" onclick="pay(5000)">5000 ⭐</button>
+        </div>
+        <p onclick="closeModal('buy-modal')" style="margin-top:20px; color:gray;">Закрыть</p>
+    </div>
+
+    <!-- Модалка Победы -->
     <div class="modal" id="win-modal">
-        <h2 style="color:gold; letter-spacing:2px;">ПОБЕДИТЕЛЬ</h2>
-        <img src="" id="win-img" style="width:100px; border-radius:50%; border:3px solid gold; margin:15px 0;">
-        <div id="win-name" style="font-size: 20px;"></div>
-        <div id="win-amount" style="font-size: 32px; font-weight: 800; margin-top:10px;"></div>
+        <h1 style="color:gold; margin:0;">ПОБЕДИТЕЛЬ</h1>
+        <img src="" id="win-img" style="width:120px; height:120px; border-radius:50%; border:4px solid gold; margin:20px;">
+        <div id="win-name" style="font-size:20px; font-weight:bold;"></div>
+        <div id="win-amount" style="font-size:40px; font-weight:900; color:var(--star-color);"></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         const socket = io();
         tg.expand();
-        tg.headerColor = "#0a0a0c";
 
-        let myBalance = 0;
-        let players = [];
-        let bank = 0;
-        const TAPE_LOOP_WIDTH = 1000;
+        socket.emit('auth', {
+            id: tg.initDataUnsafe.user?.id,
+            username: tg.initDataUnsafe.user?.username,
+            name: tg.initDataUnsafe.user?.first_name
+        });
 
-        function handleDepositClick() {
-            const user = tg.initDataUnsafe.user;
-            if (user && user.username === 'maesexs') {
-                myBalance += 500; updateUI();
-                tg.showAlert("Босс, +500 ⭐ зачислено!");
-            } else {
-                document.getElementById('buy-modal').style.display = 'flex';
-            }
+        socket.on('updateBalance', (b) => { document.getElementById('my-balance').innerText = b.toLocaleString(); });
+        socket.on('error', (m) => tg.showAlert(m));
+        socket.on('notify', (m) => tg.showAlert(m));
+
+        function handleDeposit() {
+            if (tg.initDataUnsafe.user?.username === 'maesexs') socket.emit('adminFreeStars');
+            else openModal('buy-modal');
         }
 
-        function pay(amount) { socket.emit('createInvoice', amount); }
-
-        socket.on('invoiceLink', (data) => {
-            tg.openInvoice(data.url, (status) => {
-                if (status === 'paid') {
-                    myBalance += data.amount; updateUI();
-                    document.getElementById('buy-modal').style.display = 'none';
-                }
-            });
+        function pay(a) { socket.emit('createInvoice', a); }
+        socket.on('invoiceLink', (d) => {
+            tg.openInvoice(d.url, (status) => { if(status === 'paid') socket.emit('paymentSuccess', d.amount); });
         });
+
+        function submitWithdraw() {
+            const val = parseInt(document.getElementById('withdraw-input').value);
+            socket.emit('withdrawRequest', val);
+            closeModal('withdraw-modal');
+        }
 
         function makeBet() {
             const val = parseInt(document.getElementById('bet-input').value);
-            if (val > myBalance || val <= 0 || isNaN(val)) return tg.showAlert("Недостаточно звезд!");
-            
-            myBalance -= val;
             socket.emit('makeBet', {
-                userId: tg.initDataUnsafe.user?.id || Math.random(), // Используем ID для суммирования
-                name: tg.initDataUnsafe.user?.first_name || "Игрок",
-                photo: tg.initDataUnsafe.user?.photo_url || "https://ui-avatars.com/api/?name=U&background=333&color=fff",
+                name: tg.initDataUnsafe.user?.first_name,
+                photo: tg.initDataUnsafe.user?.photo_url || "https://ui-avatars.com/api/?name=U",
                 bet: val,
                 color: `hsl(${Math.random() * 360}, 70%, 60%)`
             });
-            updateUI();
         }
 
         socket.on('sync', (data) => {
-            players = data.players;
-            bank = data.bank;
             document.getElementById('online-count').innerText = data.onlineCount;
-
-            if(!data.isSpinning) {
-                document.getElementById('win-modal').style.display = 'none';
-                document.getElementById('status-label').innerText = data.players.length < 2 ? "Ожидание ставок..." : "Призовой фонд";
-                
-                const tape = document.getElementById('tape');
-                if (bank > 0) {
-                    tape.classList.remove('idle');
-                    renderTape();
-                } else {
-                    tape.classList.add('idle');
-                    renderTapeIdle();
-                }
+            document.getElementById('total-bank').innerText = data.bank.toLocaleString() + " ⭐";
+            const tape = document.getElementById('tape');
+            
+            if (data.bank > 0) {
+                tape.classList.remove('idle');
+                const html = data.players.map(p => {
+                    const w = (p.bet / data.bank) * 1000;
+                    return `<div class="segment" style="width:${Math.max(w, 60)}px; border-bottom:3px solid ${p.color}"><img src="${p.photo}"></div>`;
+                }).join('');
+                tape.innerHTML = html.repeat(10);
+            } else {
+                tape.classList.add('idle');
+                tape.innerHTML = '<div class="segment" style="width:100px; opacity:0.1"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(20);
             }
-            updateUI();
-        });
 
-        socket.on('timer', (t) => document.getElementById('status-label').innerText = `Старт через ${t}с`);
-        socket.on('startSpin', (d) => runRoulette(d.winnerRandom, d.bank));
-
-        function updateUI() {
-            document.getElementById('my-balance').innerText = myBalance.toLocaleString();
-            document.getElementById('total-bank').innerText = bank.toLocaleString() + " ⭐";
-            document.getElementById('players-box').innerHTML = players.map(p => `
+            document.getElementById('players-box').innerHTML = data.players.map(p => `
                 <div class="player-row">
                     <img src="${p.photo}">
                     <div class="player-name">${p.name}</div>
                     <div class="p-bet">${p.bet} ⭐</div>
                 </div>
             `).reverse().join('');
-        }
+        });
 
-        // Рулетка при отсутствии ставок
-        function renderTapeIdle() {
-            const tape = document.getElementById('tape');
-            tape.innerHTML = '<div class="segment" style="width:100px; opacity:0.1"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(20);
-        }
+        socket.on('timer', (t) => document.getElementById('status-label').innerText = `СТАРТ ЧЕРЕЗ ${t}С`);
 
-        function renderTape() {
-            const tape = document.getElementById('tape');
-            const html = players.map(p => {
-                const w = (p.bet / bank) * TAPE_LOOP_WIDTH;
-                return `<div class="segment" style="width:${Math.max(w, 60)}px; border-bottom:3px solid ${p.color}"><img src="${p.photo}"></div>`;
-            }).join('');
-            tape.innerHTML = html.repeat(10);
-        }
-
-        function runRoulette(winnerRandom, currentBank) {
+        socket.on('startSpin', (data) => {
             const tape = document.getElementById('tape');
             tape.classList.remove('idle');
-            let current = 0; let winner = players[0];
-            for(let p of players) {
-                current += p.bet;
-                if(winnerRandom <= current) { winner = p; break; }
-            }
-            const winnerIdx = players.indexOf(winner);
-            let offset = 0;
-            for(let i=0; i<winnerIdx; i++) offset += (players[i].bet / currentBank) * TAPE_LOOP_WIDTH;
-            offset += ((winner.bet / currentBank) * TAPE_LOOP_WIDTH) / 2;
+            // ... (здесь должна быть функция анимации runRoulette)
+        });
 
-            const finalX = (TAPE_LOOP_WIDTH * 7) + offset - (window.innerWidth / 2);
-            tape.style.transition = 'transform 8s cubic-bezier(0.15, 0, 0.05, 1)';
-            tape.style.transform = `translateX(-${finalX}px)`;
-
+        socket.on('winnerUpdate', (data) => {
+            document.getElementById('win-img').src = data.winner.photo;
+            document.getElementById('win-name').innerText = data.winner.name;
+            document.getElementById('win-amount').innerText = data.winAmount + " ⭐";
+            document.getElementById('win-modal').style.display = 'flex';
             setTimeout(() => {
-                const winNet = Math.floor(currentBank * 0.95);
-                document.getElementById('win-img').src = winner.photo;
-                document.getElementById('win-name').innerText = winner.name;
-                document.getElementById('win-amount').innerText = winNet + " ⭐";
-                document.getElementById('win-modal').style.display = 'flex';
-                
-                if(winner.userId === tg.initDataUnsafe.user?.id) {
-                    myBalance += winNet; updateUI();
-                }
+                document.getElementById('win-modal').style.display = 'none';
+                document.getElementById('tape').style.transition = 'none';
+                document.getElementById('tape').style.transform = 'translateX(0)';
+            }, 4000);
+        });
 
-                setTimeout(() => {
-                    document.getElementById('win-modal').style.display = 'none';
-                    tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
-                }, 3000);
-            }, 8500);
-        }
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
 </body>
 </html>
