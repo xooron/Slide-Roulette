@@ -33,7 +33,7 @@ let gameState = {
     isSpinning: false, 
     timeLeft: 0, 
     onlineCount: 0,
-    tapeLayout: [] // Общий порядок ячеек для всех
+    tapeLayout: [] 
 };
 
 let countdownInterval = null;
@@ -80,6 +80,25 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
+    socket.on('withdrawRequest', async (amount) => {
+        if (!socket.userId) return;
+        const user = await User.findOne({ userId: socket.userId });
+        
+        if (amount < 1000) return socket.emit('error', "Минимум для вывода: 1000 ⭐");
+        if (!user || user.balance < amount) return socket.emit('error', "Недостаточно звезд!");
+
+        await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
+        
+        const updatedUser = await User.findOne({ userId: socket.userId });
+        socket.emit('updateUserData', updatedUser);
+
+        // Уведомление в консоль Render
+        console.log(`\n🛑 ЗАЯВКА НА ВЫВОД 🛑\nЮзер: @${user.username}\nСумма: ${amount} ⭐\nID: ${user.userId}\n`);
+        
+        // Уведомление игроку
+        socket.emit('notify', `Заявка на ${amount} ⭐ принята! Выплата придет в течение 24ч.`);
+    });
+
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
@@ -95,7 +114,7 @@ io.on('connection', (socket) => {
         gameState.players.push({ 
             userId: botId, name: "Bot_" + Math.random().toString(36).substr(2,3), 
             photo: `https://ui-avatars.com/api/?background=random&name=B`, 
-            bet: botBet, isBot: true, color: `hsl(${Math.random()*360},70%,60%)` 
+            bet: botBet, isBot: true, color: `hsl(${Math.random()*360}, 70%, 60%)` 
         });
         gameState.bank += botBet;
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
@@ -110,7 +129,7 @@ io.on('connection', (socket) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: `Пополнение ${amount} ⭐`,
-                    description: `Roulette Deposit`,
+                    description: `Stars Roulette`,
                     payload: `dep_${socket.userId}`,
                     currency: "XTR",
                     prices: [{ label: "Stars", amount: amount }]
@@ -150,7 +169,6 @@ function runGame() {
     const currentBank = gameState.bank;
     const winnerRandom = Math.random() * currentBank;
     
-    // 1. Определяем победителя один раз на сервере
     let current = 0; 
     let winner = gameState.players[0];
     for (let p of gameState.players) {
@@ -158,34 +176,27 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
-    // 2. Генерируем случайную ленту (300 ячеек) один раз для всех
+    // Генерация ленты
     let pool = [];
     gameState.players.forEach(p => {
         let count = Math.max(Math.round((p.bet / currentBank) * 60), 1);
         for(let i=0; i<count; i++) pool.push({ photo: p.photo, color: p.color });
     });
-    // Перемешивание
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    // Создаем финальный массив в 300 элементов
     let finalTape = [];
     while(finalTape.length < 300) finalTape = finalTape.concat(pool);
     gameState.tapeLayout = finalTape;
 
-    // 3. Отправляем всем команду на крутку с ОДИНАКОВЫМИ данными
-    io.emit('startSpin', { 
-        winner, 
-        winnerRandom, 
-        bank: currentBank, 
-        tapeLayout: gameState.tapeLayout 
-    });
+    io.emit('startSpin', { winner, winnerRandom, bank: currentBank, tapeLayout: gameState.tapeLayout });
 
-    // 4. Начисляем выигрыш в базе (ОДИН РАЗ)
+    // РАСЧЕТ ВЫИГРЫША БЕЗ КОМИССИИ НА СВОЮ СТАВКУ
     setTimeout(async () => {
-        const commission = Math.floor(currentBank * 0.05);
-        const winAmount = currentBank - commission;
+        const profitPool = currentBank - winner.bet; // Ставки чужих игроков
+        const commission = Math.floor(profitPool * 0.05); // 5% только с прибыли
+        const winAmount = currentBank - commission; // Своя ставка + (прибыль - 5%)
         
         const ids = gameState.players.filter(p => !p.isBot).map(p => p.userId);
         await User.updateMany({ userId: { $in: ids } }, { $inc: { gamesPlayed: 1 } });
@@ -196,11 +207,10 @@ function runGame() {
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
         
-        // Сброс
         gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
         io.emit('sync', gameState);
     }, 14500);
 }
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`Server started`));
+server.listen(PORT, () => console.log(`Server started on ${PORT}`));
