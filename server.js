@@ -14,7 +14,6 @@ const io = new Server(server);
 
 app.use(express.static(__dirname));
 
-// Модели данных
 const userSchema = new mongoose.Schema({
     userId: { type: String, unique: true },
     username: String,
@@ -25,7 +24,7 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 if (MONGODB_URI) {
-    mongoose.connect(MONGODB_URI).then(() => console.log("MongoDB Connected"));
+    mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 }
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0 };
@@ -37,18 +36,13 @@ io.on('connection', (socket) => {
 
     socket.on('auth', async (userData) => {
         if (!userData.id) return;
-        try {
-            let user = await User.findOne({ userId: userData.id.toString() });
-            if (!user) {
-                user = new User({ userId: userData.id.toString(), username: userData.username, name: userData.name });
-                await user.save();
-            } else {
-                user.username = userData.username; user.name = userData.name;
-                await user.save();
-            }
-            socket.userId = user.userId;
-            socket.emit('updateUserData', user);
-        } catch (e) { console.error(e); }
+        let user = await User.findOne({ userId: userData.id.toString() });
+        if (!user) {
+            user = new User({ userId: userData.id.toString(), username: userData.username, name: userData.name });
+            await user.save();
+        }
+        socket.userId = user.userId;
+        socket.emit('updateUserData', user);
     });
 
     socket.on('createInvoice', async (amount) => {
@@ -70,19 +64,11 @@ io.on('connection', (socket) => {
         } catch (e) { console.error(e); }
     });
 
-    socket.on('paymentSuccess', async (amount) => {
-        await User.updateOne({ userId: socket.userId }, { $inc: { balance: amount } });
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-    });
-
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
             const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
-            if (target) {
-                io.emit('updateUserDataTrigger', { id: target.userId, data: target });
-                socket.emit('notify', "Выдано!");
-            }
+            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
         }
     });
 
@@ -116,7 +102,6 @@ io.on('connection', (socket) => {
             await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
             socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
             console.log(`ЗАЯВКА: @${user.username} - ${amount}`);
-            socket.emit('notify', "Заявка отправлена!");
         }
     });
 
@@ -133,18 +118,21 @@ function startCountdown() {
 
 function runGame() {
     gameState.isSpinning = true;
-    const bank = gameState.bank;
-    const winnerRandom = Math.random() * bank;
+    const currentBank = gameState.bank;
+    const winnerRandom = Math.random() * currentBank;
     let current = 0; let winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
-    io.emit('startSpin', { winnerRandom, bank, winner });
+    
+    io.emit('startSpin', { winnerRandom, bank: currentBank, winner });
+    
     setTimeout(async () => {
-        const commission = Math.floor(bank * 0.05);
-        const winAmount = bank - commission;
+        const commission = Math.floor(currentBank * 0.05);
+        const winAmount = currentBank - commission;
         const ids = gameState.players.filter(p => !p.isBot).map(p => p.userId);
         await User.updateMany({ userId: { $in: ids } }, { $inc: { gamesPlayed: 1 } });
         if (!winner.isBot) await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
-        io.emit('winnerUpdate', { winner, winAmount });
+        
+        io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
         gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
         io.emit('sync', gameState);
     }, 14500);
