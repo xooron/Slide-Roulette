@@ -61,36 +61,24 @@ io.on('connection', (socket) => {
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -data.bet } });
         
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) {
-            ex.bet += data.bet;
-        } else {
-            gameState.players.push({ 
-                userId: socket.userId, 
-                name: data.name, 
-                photo: data.photo, 
-                bet: data.bet, 
-                color: `hsl(${Math.random()*360}, 70%, 60%)` 
-            });
-        }
+        if (ex) ex.bet += data.bet;
+        else gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: data.bet, color: `hsl(${Math.random()*360}, 70%, 60%)` });
 
         gameState.bank += data.bet;
-        // Сортируем игроков: крупные ставки в начало списка
         gameState.players.sort((a, b) => b.bet - a.bet);
 
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
-        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
     socket.on('withdrawRequest', async (amount) => {
-        if (!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if (amount < 1000 || user.balance < amount) return socket.emit('error', "Ошибка вывода");
+        if (!user || amount < 1000 || user.balance < amount) return socket.emit('error', "Ошибка вывода");
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-        console.log(`💰 ВЫВОД: @${user.username} - ${amount} ⭐`);
-        socket.emit('notify', `Заявка принята!`);
+        console.log(`💰 ВЫВОД: @${user.username} - ${amount}`);
+        socket.emit('notify', "Заявка принята!");
     });
 
     socket.on('adminGiveStars', async (data) => {
@@ -101,10 +89,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('disconnect', () => {
-        gameState.onlineCount = io.engine.clientsCount;
+    socket.on('adminAddBot', () => {
+        if (gameState.isSpinning) return;
+        const botBet = Math.floor(Math.random() * 150) + 50;
+        gameState.players.push({ userId: "bot_"+Math.random(), name: "Bot_"+Math.random().toString(36).substr(2,3), photo: "https://ui-avatars.com/api/?background=random", bet: botBet, isBot: true, color: `hsl(${Math.random()*360},70%,60%)` });
+        gameState.bank += botBet;
+        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
         io.emit('sync', gameState);
     });
+
+    socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
 });
 
 function startCountdown() {
@@ -132,13 +126,12 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
-    // Генерация ленты: крупные игроки чаще и в начале
+    // Генерация финальной ленты (layout)
     let pool = [];
     gameState.players.forEach(p => {
         let count = Math.max(Math.round((p.bet / currentBank) * 60), 1);
         for(let i=0; i<count; i++) pool.push({ photo: p.photo, color: p.color });
     });
-    // Перемешиваем
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -147,32 +140,31 @@ function runGame() {
     while(finalTape.length < 300) finalTape = finalTape.concat(pool);
     gameState.tapeLayout = finalTape;
 
-    io.emit('startSpin', { winner, bank: currentBank, tapeLayout: gameState.tapeLayout });
+    io.emit('startSpin', { winner, tapeLayout: gameState.tapeLayout });
 
-    // Обработка выигрыша
     setTimeout(async () => {
         const profit = currentBank - winner.bet;
-        const winAmount = Math.floor(winner.bet + (profit * 0.95)); // 5% только с прибыли
+        const winAmount = Math.floor(winner.bet + (profit * 0.95));
         
         const ids = gameState.players.filter(p => !p.isBot).map(p => p.userId);
         await User.updateMany({ userId: { $in: ids } }, { $inc: { gamesPlayed: 1 } });
-        
-        if (!winner.isBot) {
-            await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
-        }
+        if (!winner.isBot) await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
 
-        // Отправляем всем инфо о победителе
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
-        
-        // МГНОВЕННОЕ ОБНОВЛЕНИЕ БАЛАНСОВ ВСЕМ
+
+        // Мгновенное обновление балансов
         for(let id of ids) {
-            const updatedUser = await User.findOne({ userId: id });
-            io.emit('updateUserDataTrigger', { id: id, data: updatedUser });
+            const u = await User.findOne({ userId: id });
+            io.emit('updateUserDataTrigger', { id: id, data: u });
         }
 
-        gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
+        // СБРОС СОСТОЯНИЯ
+        gameState.players = [];
+        gameState.bank = 0;
+        gameState.isSpinning = false;
+        gameState.tapeLayout = [];
         io.emit('sync', gameState);
-    }, 14000);
+    }, 14500);
 }
 
 const PORT = process.env.PORT || 10000;
