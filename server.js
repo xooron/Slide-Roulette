@@ -7,20 +7,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Раздаем статические файлы из текущей папки
-app.use(express.static(path.join(__dirname)));
-
-// Явно указываем, что по адресу "/" нужно отдать index.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.use(express.static(__dirname));
 
 let gameState = {
     players: [],
     bank: 0,
     isSpinning: false,
-    timeLeft: 0,
-    lastWinner: null
+    timeLeft: 0
 };
 
 let countdownInterval = null;
@@ -28,10 +21,11 @@ let countdownInterval = null;
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
 
-    socket.on('makeBet', (playerData) => {
+    socket.on('makeBet', (data) => {
         if (gameState.isSpinning) return;
-        gameState.players.push(playerData);
-        gameState.bank += playerData.bet;
+        gameState.players.push(data);
+        gameState.bank += data.bet;
+        
         if (gameState.players.length >= 2 && !countdownInterval) {
             startCountdown();
         }
@@ -56,11 +50,12 @@ function runGame() {
     gameState.isSpinning = true;
     const winnerRandom = Math.random() * gameState.bank;
     io.emit('startSpin', { winnerRandom, bank: gameState.bank });
+
     setTimeout(() => {
-        gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, lastWinner: null };
+        gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
         io.emit('sync', gameState);
     }, 14000);
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
+server.listen(PORT, () => console.log(`Server on port ${PORT}`));
