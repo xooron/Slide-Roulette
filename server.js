@@ -53,31 +53,45 @@ io.on('connection', (socket) => {
         socket.userId = user.userId;
         socket.emit('updateUserData', user);
         
-        // Если игра уже идет, отправляем команду на крутку персонально вошедшему
         if (gameState.isSpinning) {
-            socket.emit('startSpin', { 
-                winner: gameState.currentWinner, 
-                tapeLayout: gameState.tapeLayout,
-                isResume: true 
-            });
+            socket.emit('startSpin', { winner: gameState.currentWinner, tapeLayout: gameState.tapeLayout });
         }
     });
 
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning) return;
-        const user = await User.findOne({ userId: socket.userId });
-        if (!user || user.balance < data.bet) return socket.emit('error', "Мало звезд!");
+        
+        const betAmount = parseInt(data.bet);
+        // ЗАЩИТА ОТ МИНУСОВЫХ И НЕКОРРЕКТНЫХ СТАВОК
+        if (isNaN(betAmount) || betAmount <= 0) {
+            return socket.emit('error', "Ставка должна быть больше 0!");
+        }
 
-        await User.updateOne({ userId: socket.userId }, { $inc: { balance: -data.bet } });
+        const user = await User.findOne({ userId: socket.userId });
+        if (!user || user.balance < betAmount) {
+            return socket.emit('error', "Недостаточно звезд на балансе!");
+        }
+
+        await User.updateOne({ userId: socket.userId }, { $inc: { balance: -betAmount } });
         
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) ex.bet += data.bet;
-        else gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: data.bet, color: `hsl(${Math.random()*360}, 70%, 60%)` });
+        if (ex) {
+            ex.bet += betAmount;
+        } else {
+            gameState.players.push({ 
+                userId: socket.userId, 
+                name: data.name, 
+                photo: data.photo, 
+                bet: betAmount, 
+                color: `hsl(${Math.random()*360}, 70%, 60%)` 
+            });
+        }
 
-        gameState.bank += data.bet;
+        gameState.bank += betAmount;
         gameState.players.sort((a, b) => b.bet - a.bet);
 
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
+        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -85,13 +99,12 @@ io.on('connection', (socket) => {
     socket.on('withdrawRequest', async (amount) => {
         if (!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if (!user || amount < 1000 || user.balance < amount) return socket.emit('error', "Ошибка: мин. 1000 ⭐ или мало звезд");
+        if (!user || amount < 1000 || user.balance < amount) return socket.emit('error', "Минимум 1000 ⭐");
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-        
-        console.log(`\n🚨 ЗАЯВКА НА ВЫВОД: @${user.username} - ${amount} ⭐ (ID: ${user.userId})\n`);
-        socket.emit('notify', "Заявка принята! Ожидайте выплату в течение 24ч.");
+        console.log(`💰 ВЫВОД: @${user.username} - ${amount} ⭐`);
+        socket.emit('notify', "Заявка отправлена! Ожидайте выплату.");
     });
 
     socket.on('adminGiveStars', async (data) => {
@@ -102,12 +115,34 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('createInvoice', async (amount) => {
+        if (!BOT_TOKEN) return socket.emit('error', "Платежи не настроены");
+        try {
+            const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Пополнение ${amount} ⭐`,
+                    description: `Пополнение баланса Slide Roulette`,
+                    payload: `dep_${socket.userId}`,
+                    currency: "XTR",
+                    prices: [{ label: "Stars", amount: amount }]
+                })
+            });
+            const data = await res.json();
+            if (data.ok) socket.emit('invoiceLink', { url: data.result, amount });
+        } catch (e) { console.error(e); }
+    });
+
     socket.on('paymentSuccess', async (amount) => {
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: amount } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
+    socket.on('disconnect', () => { 
+        gameState.onlineCount = io.engine.clientsCount; 
+        io.emit('sync', gameState); 
+    });
 });
 
 function startCountdown() {
@@ -134,33 +169,38 @@ function runGame() {
         current += p.bet;
         if (winnerRandom <= current) { winner = p; break; }
     }
-
     gameState.currentWinner = winner;
 
-    // Генерация ленты
     let pool = [];
     gameState.players.forEach(p => {
         let count = Math.max(Math.round((p.bet / currentBank) * 60), 1);
         for(let i=0; i<count; i++) pool.push({ photo: p.photo, color: p.color });
     });
-    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    let finalTape = []; while(finalTape.length < 300) finalTape = finalTape.concat(pool);
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    let finalTape = [];
+    while(finalTape.length < 300) finalTape = finalTape.concat(pool);
     gameState.tapeLayout = finalTape;
 
-    io.emit('startSpin', { winner, tapeLayout: gameState.tapeLayout });
+    io.emit('startSpin', { winner, bank: currentBank, tapeLayout: gameState.tapeLayout });
 
     setTimeout(async () => {
         const profit = currentBank - winner.bet;
-        const winAmount = Math.floor(winner.bet + (profit * 0.95));
+        const winAmount = Math.floor(winner.bet + (profit * 0.95)); // Своя ставка без комиссии
         
-        await User.updateMany({ userId: { $in: gameState.players.map(p=>p.userId) } }, { $inc: { gamesPlayed: 1 } });
-        if (!winner.isBot) await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
+        const playerIds = gameState.players.map(p => p.userId);
+        await User.updateMany({ userId: { $in: playerIds } }, { $inc: { gamesPlayed: 1 } });
+        
+        if (!winner.isBot) {
+            await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
+        }
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
 
-        // Мгновенное обновление всех
-        const affectedIds = gameState.players.map(p => p.userId);
-        for (let id of affectedIds) {
+        // Мгновенное обновление балансов
+        for (let id of playerIds) {
             const u = await User.findOne({ userId: id });
             if (u) io.emit('updateUserDataTrigger', { id, data: u });
         }
@@ -172,4 +212,4 @@ function runGame() {
 }
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`Server Live`));
+server.listen(PORT, () => console.log(`Server started`));
