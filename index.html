@@ -23,7 +23,7 @@
 
         .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); }
-        .tape { display: flex; height: 100%; align-items: center; transition: none; will-change: transform; transform: translateX(0); }
+        .tape { display: flex; height: 100%; align-items: center; transition: none; will-change: transform; }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
         
@@ -31,7 +31,7 @@
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
 
         .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); margin: 10px 16px; flex-shrink: 0; }
-        .bet-input-box input { flex: 1; background: none; border: none; color: white; padding-left: 10px; font-size: 18px; font-weight: bold; width: 50px; }
+        .bet-input-box input { flex: 1; background: none; border: none; color: white; padding-left: 10px; font-size: 18px; font-weight: bold; }
         .btn-bet { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; }
 
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
@@ -41,7 +41,7 @@
 
         .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 24px; border: 1px solid gold; display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(250%); transition: transform 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.2); }
         .modal-win.show { display: flex; transform: translateY(0); }
-        .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; }
         .input-dark { width: 100%; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; color: white; text-align: center; font-size: 20px; margin: 15px 0; }
     </style>
 </head>
@@ -80,15 +80,15 @@
     <div id="profile-page" class="page">
         <div style="padding:40px 20px; text-align:center;">
             <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:3px solid var(--star); margin-bottom:15px;">
-            <h2 id="p-name" style="margin:0">Загрузка...</h2>
+            <h2 id="p-name">Загрузка...</h2>
             <div id="p-username" style="color:var(--hint); font-size:14px; margin-top:5px; margin-bottom:25px;"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-bal" style="font-size:24px;">0</b><br><small>БАЛАНС</small></div>
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-games" style="font-size:24px;">0</b><br><small>ИГРЫ</small></div>
             </div>
             <div id="admin-p" style="display:none; margin-top:30px; padding:20px; border:1px dashed gold; border-radius:20px;">
-                <input type="text" id="adm-user" placeholder="@username" class="input-dark" style="font-size:14px; padding:10px;">
-                <input type="number" id="adm-amt" placeholder="Сумма" class="input-dark" style="font-size:14px; padding:10px; margin-top:0;">
+                <input type="text" id="adm-user" placeholder="@username" class="input-dark">
+                <input type="number" id="adm-amt" placeholder="Сумма" class="input-dark">
                 <button class="btn-bet" style="width:100%" onclick="adminGive()">ВЫДАТЬ ⭐</button>
             </div>
         </div>
@@ -110,7 +110,7 @@
     </div>
 
     <div id="win-modal" class="modal-win">
-        <img id="win-ava" src="" style="width:50px; height:50px; border-radius:50%; margin-right:15px; border:2px solid gold;">
+        <img id="win-ava" src="" style="width:50px; height:50px; border-radius:50%; border:2px solid gold; margin-right:15px;">
         <div style="flex:1"><div id="win-n" style="font-weight:bold;"></div><div style="color:var(--star); font-weight:900;"><span id="win-a">0</span> ⭐</div></div>
     </div>
 
@@ -156,14 +156,13 @@
         function makeBet() {
             if(isSpinningLocal) return;
             const val = parseInt(document.getElementById('bet-input').value);
-            if(isNaN(val) || val > me.balance) return tg.showAlert("Сумма неверна!");
+            if(val > me.balance || isNaN(val)) return tg.showAlert("Сумма неверна!");
             socket.emit('makeBet', { name: me.name, photo: tg.initDataUnsafe.user?.photo_url || `https://ui-avatars.com/api/?name=${me.name}`, bet: val });
         }
 
         function adminGive() { 
             const u = document.getElementById('adm-user').value;
             const a = document.getElementById('adm-amt').value;
-            if(!u || !a) return tg.showAlert("Заполните поля");
             socket.emit('adminGiveStars', { targetUsername: u, amount: a }); 
         }
 
