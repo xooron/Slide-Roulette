@@ -1,4 +1,3 @@
-// ================= СЕРВЕРНАЯ ЧАСТЬ (index.js) =================
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -25,7 +24,7 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 if (MONGODB_URI) {
-    mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
+    mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected")).catch(e => console.error("DB Error:", e));
 }
 
 let gameState = { 
@@ -49,14 +48,9 @@ io.on('connection', (socket) => {
         if (!userData.id) return;
         let user = await User.findOne({ userId: userData.id.toString() });
         if (!user) {
-            user = new User({ 
-                userId: userData.id.toString(), 
-                username: userData.username, 
-                name: userData.name 
-            });
+            user = new User({ userId: userData.id.toString(), username: userData.username, name: userData.name });
             await user.save();
         } else {
-            // Обновляем ник и имя, если они изменились в ТГ
             user.username = userData.username;
             user.name = userData.name;
             await user.save();
@@ -97,44 +91,57 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    socket.on('withdrawRequest', async (amount) => {
-        const user = await User.findOne({ userId: socket.userId });
-        if (!user || amount < 1000 || user.balance < amount) return socket.emit('error', "Минимум 1000 ⭐");
-        await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-        socket.emit('notify', "Заявка отправлена!");
-    });
-
-    socket.on('adminGiveStars', async (data) => {
-        const admin = await User.findOne({ userId: socket.userId });
-        if (admin && admin.username === ADMIN_USERNAME) {
-            const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
-            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
-        }
-    });
-
     socket.on('createInvoice', async (amount) => {
-        if (!BOT_TOKEN) return socket.emit('error', "Платежи не настроены");
+        if (!BOT_TOKEN) return socket.emit('error', "Ошибка: BOT_TOKEN не настроен на сервере");
+        
         try {
             const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: `Пополнение ${amount} ⭐`,
-                    description: `Slide Roulette`,
-                    payload: `dep_${socket.userId}`,
+                    description: `Пополнение баланса в Slide Roulette`,
+                    payload: `dep_${socket.userId}_${Date.now()}`,
                     currency: "XTR",
                     prices: [{ label: "Stars", amount: amount }]
                 })
             });
-            const data = await res.json();
-            if (data.ok) socket.emit('invoiceLink', { url: data.result, amount });
-        } catch (e) { console.error(e); }
+            const result = await res.json();
+            if (result.ok) {
+                socket.emit('invoiceLink', { url: result.result, amount });
+            } else {
+                console.error("Telegram API Error:", result);
+                socket.emit('error', "Ошибка Telegram API: " + result.description);
+            }
+        } catch (e) { 
+            console.error("Invoice Error:", e);
+            socket.emit('error', "Ошибка при создании счета");
+        }
     });
 
     socket.on('paymentSuccess', async (amount) => {
-        await User.updateOne({ userId: socket.userId }, { $inc: { balance: amount } });
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+        // ВАЖНО: В реальном проекте это должно идти через Webhook Telegram.
+        // Для этого простого кода добавлена базовая проверка.
+        if (!socket.userId) return;
+        const amt = parseInt(amount);
+        if (isNaN(amt) || amt <= 0) return;
+
+        await User.updateOne({ userId: socket.userId }, { $inc: { balance: amt } });
+        const updatedUser = await User.findOne({ userId: socket.userId });
+        socket.emit('updateUserData', updatedUser);
+        socket.emit('notify', `Зачислено ${amt} ⭐!`);
+    });
+
+    socket.on('adminGiveStars', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin && admin.username === ADMIN_USERNAME) {
+            const target = await User.findOneAndUpdate(
+                { username: data.targetUsername.replace('@','') }, 
+                { $inc: { balance: parseInt(data.amount) } }, 
+                { new: true }
+            );
+            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
+        }
     });
 
     socket.on('disconnect', () => { 
@@ -158,6 +165,7 @@ function startCountdown() {
 }
 
 function runGame() {
+    // Защита от двойного запуска
     if (gameState.isSpinning || gameState.players.length < 2) return;
     
     gameState.isSpinning = true;
@@ -188,9 +196,9 @@ function runGame() {
 
     io.emit('startSpin', gameState);
 
-    // КОМИССИЯ ТОЛЬКО С ПРОИГРАВШИХ
-    const otherBets = currentBank - winner.bet;
-    const winAmount = Math.floor(winner.bet + (otherBets * 0.95));
+    // КОМИССИЯ: Только с суммы ставок проигравших (ставка победителя не трогается)
+    const othersPool = currentBank - winner.bet;
+    const winAmount = Math.floor(winner.bet + (othersPool * 0.95));
 
     setTimeout(async () => {
         const playerIds = gameState.players.map(p => p.userId);
