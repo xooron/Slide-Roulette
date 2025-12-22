@@ -42,7 +42,6 @@ let countdownInterval = null;
 
 io.on('connection', (socket) => {
     gameState.onlineCount = io.engine.clientsCount;
-    // При входе отправляем текущее состояние (включая ленту и время начала если крутится)
     socket.emit('sync', gameState);
 
     socket.on('auth', async (userData) => {
@@ -186,14 +185,12 @@ function runGame() {
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        // Сброс состояния для новой игры
         gameState.players = []; 
         gameState.bank = 0; 
         gameState.isSpinning = false; 
         gameState.spinStartTime = 0;
         gameState.tapeLayout = [];
         
-        // Синхронизация пустого состояния
         setTimeout(() => io.emit('sync', gameState), 5000);
     }, 11000);
 }
