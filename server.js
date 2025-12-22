@@ -26,7 +26,7 @@ const User = mongoose.model('User', userSchema);
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server live on port ${PORT}`);
+    console.log(`Server started on port ${PORT}`);
     if (MONGODB_URI) {
         mongoose.connect(MONGODB_URI).then(() => {
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
@@ -34,6 +34,7 @@ server.listen(PORT, '0.0.0.0', () => {
     }
 });
 
+// Обработка платежей (Webhook)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -41,7 +42,7 @@ app.post('/webhook', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        }).catch(() => {});
+        });
     }
     if (update.message && update.message.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
@@ -89,7 +90,9 @@ io.on('connection', (socket) => {
         }
         gameState.bank += betAmount;
         gameState.players.sort((a,b) => b.bet - a.bet);
+        
         if (gameState.players.length >= 2 && !countdownInterval && !gameState.isSpinning) startCountdown();
+        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -100,7 +103,7 @@ io.on('connection', (socket) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: `Пополнение ${amount} ⭐`,
-                description: `Звезды для игры Slide Roulette`,
+                description: `Звезды для Slide Roulette`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
                 prices: [{ label: "Stars", amount: amount }]
@@ -144,17 +147,14 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
-    // Генерация пропорциональной ленты (100 сегментов)
+    // Генерация пропорциональной ленты
     let tape = [];
     gameState.players.forEach(p => {
         let slots = Math.round((p.bet / currentBank) * 100);
         for(let i=0; i<slots; i++) tape.push({ photo: p.photo, color: p.color });
     });
-    // Дозабиваем до 100 если не хватило из-за округления
     while(tape.length < 100) tape.push({ photo: winner.photo, color: winner.color });
-    // Перемешиваем
     tape.sort(() => Math.random() - 0.5);
-    // Устанавливаем победителя на 80-ю позицию
     tape[80] = { photo: winner.photo, color: winner.color };
 
     gameState.tapeLayout = tape;
@@ -167,7 +167,7 @@ function runGame() {
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
         setTimeout(() => { 
             gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
-            io.emit('sync', gameState); 
+            gameState.tapeLayout = []; io.emit('sync', gameState); 
         }, 5000);
-    }, 13000); // 12с анимация + 1с запас
+    }, 13000); 
 }
