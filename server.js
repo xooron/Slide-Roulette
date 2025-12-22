@@ -34,14 +34,16 @@ let gameState = {
     timeLeft: 0, 
     onlineCount: 0,
     tapeLayout: [],
-    winnerIndex: 0
+    winnerIndex: 0,
+    spinStartTime: 0
 };
 
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
     gameState.onlineCount = io.engine.clientsCount;
-    io.emit('sync', gameState);
+    // При входе отправляем текущее состояние (включая ленту и время начала если крутится)
+    socket.emit('sync', gameState);
 
     socket.on('auth', async (userData) => {
         if (!userData.id) return;
@@ -145,6 +147,8 @@ function startCountdown() {
 
 function runGame() {
     gameState.isSpinning = true;
+    gameState.spinStartTime = Date.now();
+    
     const currentBank = gameState.bank;
     const winnerRandom = Math.random() * currentBank;
     
@@ -155,7 +159,6 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
-    // Генерация ленты (всегда 100 элементов для стабильности)
     let tape = [];
     const players = gameState.players;
     for(let i=0; i<100; i++) {
@@ -163,35 +166,36 @@ function runGame() {
         tape.push({ photo: randomP.photo, color: randomP.color });
     }
     
-    // Принудительно ставим победителя на позицию 80 (зона остановки)
     const winIdx = 80;
     tape[winIdx] = { photo: winner.photo, color: winner.color };
     
     gameState.tapeLayout = tape;
     gameState.winnerIndex = winIdx;
 
-    io.emit('startSpin', { 
-        winner, 
-        bank: currentBank, 
-        tapeLayout: tape, 
-        winnerIndex: winIdx 
-    });
+    io.emit('startSpin', gameState);
 
     setTimeout(async () => {
         const winAmount = Math.floor(currentBank * 0.95);
         const playerIds = gameState.players.map(p => p.userId);
+        
         await User.updateMany({ userId: { $in: playerIds } }, { $inc: { gamesPlayed: 1 } });
         await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
 
-        // Обновление балансов у всех
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
-        io.emit('sync', gameState);
-    }, 11000); // 10с анимация + 1с запас
+        // Сброс состояния для новой игры
+        gameState.players = []; 
+        gameState.bank = 0; 
+        gameState.isSpinning = false; 
+        gameState.spinStartTime = 0;
+        gameState.tapeLayout = [];
+        
+        // Синхронизация пустого состояния
+        setTimeout(() => io.emit('sync', gameState), 5000);
+    }, 11000);
 }
 
 const PORT = process.env.PORT || 10000;
