@@ -63,11 +63,6 @@ io.on('connection', (socket) => {
         if (!user) {
             user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (userData.start_param && userData.start_param !== sId) ? userData.start_param : null, balance: 10 });
             await user.save();
-            if (user.referredBy) {
-                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } });
-                const r = await User.findOne({ userId: user.referredBy });
-                if (r) io.to(user.referredBy).emit('updateUserData', r);
-            }
         }
         socket.userId = sId;
         socket.emit('updateUserData', user);
@@ -91,6 +86,22 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
+    socket.on('adminGiveStars', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin?.username === ADMIN_USERNAME) {
+            const cleanUser = data.targetUsername.replace('@', '').trim();
+            const amount = parseInt(data.amount);
+            if(isNaN(amount)) return;
+            
+            const target = await User.findOneAndUpdate(
+                { username: new RegExp(`^${cleanUser}$`, "i") }, 
+                { $inc: { balance: amount } }, 
+                { new: true }
+            );
+            if (target) io.to(target.userId).emit('updateUserData', target);
+        }
+    });
+
     socket.on('createInvoice', async (amount) => {
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
             method: 'POST',
@@ -105,14 +116,6 @@ io.on('connection', (socket) => {
         });
         const d = await res.json();
         if (d.ok) socket.emit('invoiceLink', { url: d.result });
-    });
-
-    socket.on('adminGiveStars', async (data) => {
-        const admin = await User.findOne({ userId: socket.userId });
-        if (admin?.username === ADMIN_USERNAME) {
-            const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
-            if (target) io.to(target.userId).emit('updateUserData', target);
-        }
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
@@ -141,7 +144,6 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
