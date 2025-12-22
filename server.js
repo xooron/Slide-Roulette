@@ -51,10 +51,15 @@ io.on('connection', (socket) => {
         let user = await User.findOne({ userId: sId });
         if (!user) {
             let rId = userData.start_param;
-            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (rId && rId !== sId) ? rId : null });
+            user = new User({ 
+                userId: sId, 
+                username: userData.username, 
+                name: userData.name, 
+                referredBy: (rId && rId !== sId) ? rId : null 
+            });
             await user.save();
             if (user.referredBy) {
-                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } }); // Бонус 5 за друга
+                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } });
                 const r = await User.findOne({ userId: user.referredBy });
                 if (r) io.to(user.referredBy).emit('updateUserData', r);
             }
@@ -72,8 +77,17 @@ io.on('connection', (socket) => {
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amt } });
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) { ex.bet += amt; } else {
-            gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
+        if (ex) { 
+            ex.bet += amt; 
+            ex.photo = data.photo; // Обновляем фото
+        } else {
+            gameState.players.push({ 
+                userId: socket.userId, 
+                name: data.name, 
+                photo: data.photo, 
+                bet: amt, 
+                color: `hsl(${Math.random()*360}, 70%, 60%)` 
+            });
         }
         gameState.bank += amt;
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
@@ -101,20 +115,17 @@ async function runGame() {
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
-    // ГЕНЕРАЦИЯ ЛЕНТЫ С АВАТАРКАМИ ИГРОКОВ (100 ячеек)
+    // ГЕНЕРАЦИЯ ЛЕНТЫ (100 ячеек)
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
-            // Добавляем ячейку игрока пропорционально его ставке (минимум 1)
-            let count = Math.ceil((p.bet / currentBank) * 20);
+            let count = Math.ceil((p.bet / currentBank) * 25);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
         if (gameState.players.length === 0) break;
     }
-    // Перемешиваем и ограничиваем до 100
     tape = tape.sort(() => Math.random() - 0.5).slice(0, 100);
-    // На 85-ю позицию ставим реального победителя
-    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
+    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name }; // Победитель
 
     gameState.tapeLayout = tape;
     gameState.winnerIndex = 85;
@@ -139,8 +150,11 @@ async function runGame() {
         io.to(winner.userId).emit('updateUserData', winDoc);
 
         setTimeout(() => { 
-            gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
-            gameState.tapeLayout = []; io.emit('sync', gameState); 
+            gameState.players = []; 
+            gameState.bank = 0; 
+            gameState.isSpinning = false; 
+            gameState.tapeLayout = []; 
+            io.emit('sync', gameState); 
         }, 5000);
     }, 11000); 
 }
