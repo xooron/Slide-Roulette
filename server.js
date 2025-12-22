@@ -32,7 +32,6 @@ mongoose.connect(MONGODB_URI).then(() => {
     fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
 });
 
-// ОБРАБОТКА ПЛАТЕЖЕЙ (WEBHOOK)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -46,7 +45,7 @@ app.post('/webhook', async (req, res) => {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
         const amount = parseInt(update.message.successful_payment.total_amount);
-        await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
+        await User.updateOne({ userId }, { $inc: { balance: amount } });
         const user = await User.findOne({ userId });
         io.to(userId).emit('updateUserData', user);
     }
@@ -67,32 +66,16 @@ io.on('connection', (socket) => {
         let user = await User.findOne({ userId: sId });
         if (!user) {
             let rId = userData.start_param;
-            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (rId && rId !== sId) ? rId : null });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (rId && rId !== sId) ? rId : null, balance: 10 });
             await user.save();
             if (user.referredBy) {
-                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 10 } });
+                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } });
                 const r = await User.findOne({ userId: user.referredBy });
                 if (r) io.to(user.referredBy).emit('updateUserData', r);
             }
         }
         socket.userId = sId;
         socket.emit('updateUserData', user);
-    });
-
-    socket.on('createInvoice', async (amount) => {
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Пополнение ${amount} ⭐`,
-                description: `Звезды для Slide Roulette`,
-                payload: `dep_${socket.userId}`,
-                provider_token: "", currency: "XTR",
-                prices: [{ label: "Stars", amount: amount }]
-            })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result, amount });
     });
 
     socket.on('makeBet', async (data) => {
@@ -111,6 +94,22 @@ io.on('connection', (socket) => {
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    socket.on('createInvoice', async (amount) => {
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Пополнение ${amount} ⭐`,
+                description: `Звезды для Slide Roulette`,
+                payload: `dep_${socket.userId}`,
+                provider_token: "", currency: "XTR",
+                prices: [{ label: "Stars", amount: amount }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result, amount });
     });
 
     socket.on('adminGiveStars', async (data) => {
@@ -141,18 +140,20 @@ async function runGame() {
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
+    // Генерация ленты (один раз для всех)
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
+        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5).slice(0, 100);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
-    io.emit('sync', gameState);
+    io.emit('sync', gameState); // Рассылка ленты всем одновременно
 
     const winAmount = Math.floor(currentBank * 0.95);
     setTimeout(async () => {
@@ -167,7 +168,7 @@ async function runGame() {
         }
         io.emit('winnerUpdate', { winner, winAmount });
         io.to(winner.userId).emit('updateUserData', winDoc);
-        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 5000);
+        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; gameState.tapeLayout = []; io.emit('sync', gameState); }, 5000);
     }, 11000); 
 }
 
