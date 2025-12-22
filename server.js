@@ -56,7 +56,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('makeBet', async (data) => {
-        if (gameState.isSpinning) return;
+        if (gameState.isSpinning) return socket.emit('error', "Ставки закрыты, идет игра!");
         const betAmount = parseInt(data.bet);
         if (isNaN(betAmount) || betAmount <= 0) return socket.emit('error', "Ставка должна быть больше 0!");
 
@@ -185,13 +185,16 @@ function runGame() {
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        gameState.players = []; 
-        gameState.bank = 0; 
-        gameState.isSpinning = false; 
-        gameState.spinStartTime = 0;
-        gameState.tapeLayout = [];
+        // ОЖИДАЕМ 5 СЕКУНД (пока на клиенте висит модальное окно) прежде чем разрешить ставки
+        setTimeout(() => {
+            gameState.players = []; 
+            gameState.bank = 0; 
+            gameState.isSpinning = false; // РАЗРЕШАЕМ СТАВКИ ТУТ
+            gameState.spinStartTime = 0;
+            gameState.tapeLayout = [];
+            io.emit('sync', gameState);
+        }, 5000);
         
-        setTimeout(() => io.emit('sync', gameState), 5000);
     }, 11000);
 }
 
