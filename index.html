@@ -65,7 +65,7 @@
         <div class="main-header">
             <h1>Общий банк</h1>
             <div class="bank-val" id="bank-val">0 ⭐</div>
-            <div id="timer-label" style="font-size:11px; color:var(--hint); font-weight:bold;">ОЖИДАНИЕ СТАВОК...</div>
+            <div id="timer-label" style="font-size:11px; color:var(--hint); font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
         </div>
         <div class="roulette-wrap">
             <div class="pointer"></div>
@@ -132,7 +132,7 @@
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand(); tg.headerColor = "#0a0a0c";
         let me = {}; let isSpinningLocal = false;
         const SEGMENT_WIDTH = 93; 
-        const SPIN_DURATION = 10000; // 10 секунд
+        const SPIN_DURATION = 10000; 
 
         socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name });
         
@@ -174,12 +174,17 @@
 
         socket.on('sync', (data) => {
             document.getElementById('online-count').innerText = data.onlineCount;
+            const timerLabel = document.getElementById('timer-label');
+            
+            if(isSpinningLocal || data.isSpinning) {
+                timerLabel.innerText = "ИДЕТ ИГРА...";
+            }
+
             if(isSpinningLocal) return; 
 
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
             const tape = document.getElementById('tape');
             
-            // Если мы зашли, а рулетка уже крутится
             if(data.isSpinning && data.spinStartTime) {
                 runSpinAnimation(data);
                 return;
@@ -191,7 +196,7 @@
             } else { 
                 tape.classList.add('slow-drift');
                 renderEmptyTape(); 
-                document.getElementById('timer-label').innerText = "ОЖИДАНИЕ СТАВОК...";
+                timerLabel.innerText = "ОЖИДАЕМ ИГРОКОВ...";
                 tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             }
 
@@ -214,7 +219,15 @@
             document.getElementById('tape').innerHTML = items.slice(0, 40).join('');
         }
 
-        socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; });
+        socket.on('timer', (t) => { 
+            if(!isSpinningLocal) {
+                if (t > 0) {
+                    document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; 
+                } else {
+                    document.getElementById('timer-label').innerText = `ИДЕТ ИГРА...`; 
+                }
+            }
+        });
 
         socket.on('startSpin', (data) => {
             runSpinAnimation(data);
@@ -222,16 +235,15 @@
 
         function runSpinAnimation(data) {
             isSpinningLocal = true;
+            document.getElementById('timer-label').innerText = "ИДЕТ ИГРА...";
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
             
-            // Отрисовываем ленту
             tape.innerHTML = data.tapeLayout.map(cell => `<div class="segment" style="border-bottom:4px solid ${cell.color}"><img src="${cell.photo}"></div>`).join('');
             
             const targetIdx = data.winnerIndex;
             const offset = (targetIdx * SEGMENT_WIDTH) - (window.innerWidth / 2) + (SEGMENT_WIDTH / 2);
 
-            // Синхронизация времени при перезаходе
             const now = Date.now();
             const elapsed = now - data.spinStartTime;
             
@@ -241,12 +253,10 @@
                 
                 setTimeout(() => {
                     tape.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.1, 0, 0.05, 1)`;
-                    // Отрицательный delay позволяет начать анимацию с середины
                     tape.style.transitionDelay = `-${elapsed}ms`;
                     tape.style.transform = `translateX(-${offset}px)`;
                 }, 50);
             } else {
-                // Если анимация уже должна была закончиться
                 tape.style.transition = 'none';
                 tape.style.transform = `translateX(-${offset}px)`;
             }
@@ -259,9 +269,7 @@
             document.getElementById('win-a').innerText = data.winAmount.toLocaleString(); 
             document.getElementById('win-x').innerText = `x${winX}`;
             
-            // УБИРАЕМ СПИСОК УЧАСТНИКОВ
             document.getElementById('players-list').innerHTML = "";
-            document.getElementById('timer-label').innerText = "ПОБЕДИТЕЛЬ ОПРЕДЕЛЕН!";
 
             const m = document.getElementById('win-modal'); 
             m.style.display = 'flex'; 
@@ -281,6 +289,7 @@
                     tape.classList.add('slow-drift');
                     renderEmptyTape(); 
                     document.getElementById('bank-val').innerText = "0 ⭐";
+                    document.getElementById('timer-label').innerText = "ОЖИДАЕМ ИГРОКОВ...";
                 }, 600);
             }, 5000);
         });
