@@ -7,7 +7,6 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
-// Полный список подарков Telegram с рабочими ссылками (webm)
 const GIFT_MARKET = {
     "Lollipop": { price: 200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765452.160.webm" },
     "Rose": { price: 150, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765455.160.webm" },
@@ -16,8 +15,7 @@ const GIFT_MARKET = {
     "Heart": { price: 1200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765445.160.webm" },
     "Teddy": { price: 2500, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765458.160.webm" },
     "Perfume": { price: 1000, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765442.160.webm" },
-    "Coffee": { price: 100, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765439.160.webm" },
-    "Pizza": { price: 300, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765436.160.webm" }
+    "Coffee": { price: 100, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765439.160.webm" }
 };
 
 const app = express();
@@ -47,21 +45,7 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected")).catch(e => console.error(e));
-
-// Функция расчета стейкинга
-function getStakeIncome(user) {
-    if (!user.inventory) return 0;
-    let income = 0;
-    const now = new Date();
-    user.inventory.forEach(item => {
-        if (item.isStaked && item.stakeStart) {
-            const hours = (now - new Date(item.stakeStart)) / 3600000;
-            income += Math.floor(item.price * 0.001 * hours);
-        }
-    });
-    return income;
-}
+mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
@@ -77,12 +61,10 @@ io.on('connection', (socket) => {
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: userData.start_param, balance: 10 });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 10 });
             await user.save();
         }
-        const userObj = user.toObject();
-        userObj.stakingIncome = getStakeIncome(userObj);
-        socket.emit('updateUserData', userObj);
+        socket.emit('updateUserData', user);
     });
 
     socket.on('makeBet', async (data) => {
@@ -93,72 +75,65 @@ io.on('connection', (socket) => {
         if (!user || user.balance < amt) return;
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amt } });
-        let p = gameState.players.find(x => x.userId === socket.userId);
+        addPlayerToGame(socket.userId, data.name, data.photo, amt);
+    });
+
+    // НОВАЯ ФУНКЦИЯ: СТАВКА ПОДАРКОМ
+    socket.on('betWithNFT', async (itemId) => {
+        if (gameState.isSpinning || !socket.userId) return;
+        const user = await User.findOne({ userId: socket.userId });
+        if (!user) return;
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item || item.isStaked) return;
+
+        const betValue = item.price;
+        // Удаляем подарок и добавляем ставку
+        await User.updateOne({ userId: socket.userId }, { $pull: { inventory: { itemId: itemId } } });
+        
+        addPlayerToGame(socket.userId, user.name, "", betValue); // фото возьмется из сессии или профиля
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    function addPlayerToGame(userId, name, photo, amt) {
+        let p = gameState.players.find(x => x.userId === userId);
         if (p) { p.bet += amt; } else {
-            gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
+            gameState.players.push({ userId, name, photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
         }
         gameState.bank += amt;
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
         io.emit('sync', gameState);
-        const updatedUser = await User.findOne({ userId: socket.userId });
-        socket.emit('updateUserData', updatedUser);
-    });
+    }
 
-    // ФИКС ОШИБКИ ИЗ ЛОГОВ (Cast to Number failed)
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin?.username !== ADMIN_USERNAME) return;
-        
-        const cleanUser = data.targetUsername ? data.targetUsername.replace('@','') : "";
-        if(!cleanUser) return;
-
+        const cleanUser = data.targetUsername.replace('@','');
         const gift = GIFT_MARKET[data.amount];
         if (gift) {
-            await User.findOneAndUpdate(
-                { username: new RegExp(`^${cleanUser}$`, "i") },
-                { $push: { inventory: { itemId: Date.now().toString(), name: data.amount, image: gift.img, price: gift.price } } }
-            );
+            await User.findOneAndUpdate({ username: new RegExp(`^${cleanUser}$`, "i") }, { $push: { inventory: { itemId: Date.now().toString(), name: data.amount, image: gift.img, price: gift.price } } });
         } else {
             const amt = parseInt(data.amount);
-            if (!isNaN(amt)) {
-                await User.findOneAndUpdate(
-                    { username: new RegExp(`^${cleanUser}$`, "i") },
-                    { $inc: { balance: amt } }
-                );
-            }
+            if (!isNaN(amt)) await User.findOneAndUpdate({ username: new RegExp(`^${cleanUser}$`, "i") }, { $inc: { balance: amt } });
         }
         const target = await User.findOne({ username: new RegExp(`^${cleanUser}$`, "i") });
         if (target) io.to(target.userId).emit('updateUserData', target);
     });
 
     socket.on('exchangeNFT', async (itemId) => {
-        if(!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
-        
-        await User.updateOne(
-            { userId: socket.userId },
-            { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } }
-        );
-        const updated = await User.findOne({ userId: socket.userId });
-        socket.emit('updateUserData', updated);
+        await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
     socket.on('toggleStake', async (itemId) => {
-        if(!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item) return;
         const newState = !item.isStaked;
-        await User.updateOne(
-            { userId: socket.userId, "inventory.itemId": itemId },
-            { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } }
-        );
-        const updated = await User.findOne({ userId: socket.userId });
-        socket.emit('updateUserData', updated);
+        await User.updateOne({ userId: socket.userId, "inventory.itemId": itemId }, { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } });
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
@@ -207,5 +182,4 @@ async function runGame() {
     }, 11000);
 }
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`Server started`));
+server.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log(`Server started`));
