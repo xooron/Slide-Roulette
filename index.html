@@ -20,7 +20,7 @@
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 5px 0; }
         
-        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
+        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
         .slow-drift { animation: driftAnim 120s linear infinite; }
@@ -91,7 +91,7 @@
 
         <div id="admin-p" style="display:none; margin: 10px 16px; padding:15px; border:1px dashed gold; border-radius:20px;">
             <input type="text" id="adm-user" placeholder="@username" style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:10px; border-radius:10px; margin-bottom:10px;">
-            <input type="text" id="adm-amt" placeholder="Сумма или Lollipop/Diamond..." style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:10px; border-radius:10px; margin-bottom:10px;">
+            <input type="text" id="adm-amt" placeholder="Сумма или Lollipop/Rose..." style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:10px; border-radius:10px; margin-bottom:10px;">
             <button onclick="adminGive()" style="width:100%; background:var(--gold); border:none; padding:12px; border-radius:10px; font-weight:bold; color:black;">ВЫПОЛНИТЬ</button>
         </div>
     </div>
@@ -108,7 +108,6 @@
         <div style="padding: 40px 20px; text-align:center;">
             <h2>Магазин</h2>
             <div style="background:var(--glass); border-radius:24px; padding:40px; border: 1px solid rgba(255,255,255,0.05);">
-                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:100px; margin-bottom:20px;">
                 <p style="color:var(--hint);">Секция скоро будет доступна</p>
             </div>
         </div>
@@ -161,16 +160,18 @@
             if(me.username === 'maesexs') document.getElementById('admin-p').style.display = 'block';
 
             const invList = document.getElementById('inv-list');
-            invList.innerHTML = me.inventory.map(item => `
-                <div class="inv-card">
-                    ${item.isStaked ? '<span class="stake-badge">В СТЕЙКИНГЕ</span>' : ''}
-                    <img src="${item.image}">
-                    <div style="font-weight:bold; font-size:12px;">${item.name}</div>
-                    <div style="color:gold; font-size:10px; margin:4px 0;">${item.price} ⭐</div>
-                    <button onclick="socket.emit('exchangeNFT', '${item.itemId}')" style="font-size:9px; background:#444; border:none; color:white; padding:4px 8px; border-radius:5px; margin-bottom:4px; width:100%" ${item.isStaked?'disabled':''}>ОБМЕН</button>
-                    <button onclick="socket.emit('toggleStake', '${item.itemId}')" style="font-size:9px; background:${item.isStaked?'#ff4444':'#007bff'}; border:none; color:white; padding:4px 8px; border-radius:5px; width:100%">${item.isStaked?'ВЕРНУТЬ':'СТЕЙКИНГ'}</button>
-                </div>
-            `).join('');
+            if(me.inventory) {
+                invList.innerHTML = me.inventory.map(item => `
+                    <div class="inv-card">
+                        ${item.isStaked ? '<span class="stake-badge">В СТЕЙКИНГЕ</span>' : ''}
+                        <img src="${item.image}">
+                        <div style="font-weight:bold; font-size:12px;">${item.name}</div>
+                        <div style="color:gold; font-size:10px; margin:4px 0;">${item.price} ⭐</div>
+                        <button onclick="socket.emit('exchangeNFT', '${item.itemId}')" style="font-size:9px; background:#444; border:none; color:white; padding:4px 8px; border-radius:5px; margin-bottom:4px; width:100%" ${item.isStaked?'disabled':''}>ОБМЕН</button>
+                        <button onclick="socket.emit('toggleStake', '${item.itemId}')" style="font-size:9px; background:${item.isStaked?'#ff4444':'#007bff'}; border:none; color:white; padding:4px 8px; border-radius:5px; width:100%">${item.isStaked?'ВЕРНУТЬ':'СТЕЙКИНГ'}</button>
+                    </div>
+                `).join('');
+            }
         }
 
         function switchTab(t, el) {
