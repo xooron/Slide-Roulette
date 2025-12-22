@@ -1,14 +1,14 @@
 {
   "name": "slide-roulette",
   "version": "1.0.0",
-  "description": "Stars Roulette Game",
+  "description": "",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "mongoose": "^8.0.0",
-    "socket.io": "^4.7.2"
+    "mongoose": "^7.0.0",
+    "socket.io": "^4.6.1"
   }
 }
