@@ -1,3 +1,4 @@
+// ================= СЕРВЕРНАЯ ЧАСТЬ (index.js) =================
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -48,7 +49,16 @@ io.on('connection', (socket) => {
         if (!userData.id) return;
         let user = await User.findOne({ userId: userData.id.toString() });
         if (!user) {
-            user = new User({ userId: userData.id.toString(), username: userData.username, name: userData.name });
+            user = new User({ 
+                userId: userData.id.toString(), 
+                username: userData.username, 
+                name: userData.name 
+            });
+            await user.save();
+        } else {
+            // Обновляем ник и имя, если они изменились в ТГ
+            user.username = userData.username;
+            user.name = userData.name;
             await user.save();
         }
         socket.userId = user.userId;
@@ -83,7 +93,6 @@ io.on('connection', (socket) => {
         if (gameState.players.length >= 2 && !countdownInterval && !gameState.isSpinning) {
             startCountdown();
         }
-        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -164,7 +173,6 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
-    // Создаем ленту
     let tape = [];
     const players = gameState.players;
     for(let i=0; i<100; i++) {
@@ -180,26 +188,21 @@ function runGame() {
 
     io.emit('startSpin', gameState);
 
-    // Расчет выигрыша: СтавкаПобедителя + (ОстальнойБанк * 0.95)
+    // КОМИССИЯ ТОЛЬКО С ПРОИГРАВШИХ
     const otherBets = currentBank - winner.bet;
     const winAmount = Math.floor(winner.bet + (otherBets * 0.95));
 
     setTimeout(async () => {
         const playerIds = gameState.players.map(p => p.userId);
-        const savedWinnerId = winner.userId;
-        const savedPlayers = [...gameState.players];
-
-        // Начисляем баланс
+        
         await User.updateMany({ userId: { $in: playerIds } }, { $inc: { gamesPlayed: 1 } });
-        await User.updateOne({ userId: savedWinnerId }, { $inc: { balance: winAmount } });
+        await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
 
-        // Обновляем данные у всех участников
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        // Сброс состояния через 5 секунд после остановки колеса
         setTimeout(() => {
             gameState.players = []; 
             gameState.bank = 0; 
