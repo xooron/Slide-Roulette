@@ -26,18 +26,14 @@ const User = mongoose.model('User', userSchema);
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server started on port ${PORT}`);
+    console.log(`Server live on port ${PORT}`);
     if (MONGODB_URI) {
         mongoose.connect(MONGODB_URI).then(() => {
-            console.log("DB Connected");
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`)
-                .then(() => console.log("WEBHOOK SUCCESS: " + APP_URL))
-                .catch(e => console.log("WEBHOOK ERROR"));
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
         });
     }
 });
 
-// ФИКС БЕСКОНЕЧНОЙ ЗАГРУЗКИ ПРИ ОПЛАТЕ
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -45,7 +41,7 @@ app.post('/webhook', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        });
+        }).catch(() => {});
     }
     if (update.message && update.message.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
@@ -59,7 +55,7 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
 });
 
-let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 0, spinStartTime: 0 };
+let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 80, spinStartTime: 0 };
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
@@ -81,15 +77,19 @@ io.on('connection', (socket) => {
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning) return socket.emit('error', "Ставки закрыты!");
         const betAmount = parseInt(data.bet);
+        if (isNaN(betAmount) || betAmount <= 0) return;
+
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < betAmount) return socket.emit('error', "Мало звезд!");
+
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -betAmount } });
         let ex = gameState.players.find(p => p.userId === socket.userId);
         if (ex) { ex.bet += betAmount; } else {
             gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: betAmount, color: `hsl(${Math.random()*360}, 70%, 60%)` });
         }
         gameState.bank += betAmount;
-        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
+        gameState.players.sort((a,b) => b.bet - a.bet);
+        if (gameState.players.length >= 2 && !countdownInterval && !gameState.isSpinning) startCountdown();
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -100,6 +100,7 @@ io.on('connection', (socket) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: `Пополнение ${amount} ⭐`,
+                description: `Звезды для игры Slide Roulette`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
                 prices: [{ label: "Stars", amount: amount }]
@@ -134,22 +135,39 @@ function runGame() {
     if (gameState.isSpinning || gameState.players.length < 2) return;
     gameState.isSpinning = true;
     gameState.spinStartTime = Date.now();
+    
     const currentBank = gameState.bank;
     const winnerRandom = Math.random() * currentBank;
     let current = 0, winner = gameState.players[0];
-    for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
-    let tape = [];
-    for(let i=0; i<100; i++) {
-        const randomP = gameState.players[Math.floor(Math.random() * gameState.players.length)];
-        tape.push({ photo: randomP.photo, color: randomP.color });
+    for (let p of gameState.players) {
+        current += p.bet;
+        if (winnerRandom <= current) { winner = p; break; }
     }
-    const winIdx = 80; tape[winIdx] = { photo: winner.photo, color: winner.color };
-    gameState.tapeLayout = tape; gameState.winnerIndex = winIdx;
+
+    // Генерация пропорциональной ленты (100 сегментов)
+    let tape = [];
+    gameState.players.forEach(p => {
+        let slots = Math.round((p.bet / currentBank) * 100);
+        for(let i=0; i<slots; i++) tape.push({ photo: p.photo, color: p.color });
+    });
+    // Дозабиваем до 100 если не хватило из-за округления
+    while(tape.length < 100) tape.push({ photo: winner.photo, color: winner.color });
+    // Перемешиваем
+    tape.sort(() => Math.random() - 0.5);
+    // Устанавливаем победителя на 80-ю позицию
+    tape[80] = { photo: winner.photo, color: winner.color };
+
+    gameState.tapeLayout = tape;
     io.emit('startSpin', gameState);
+
     const winAmount = Math.floor(winner.bet + ((currentBank - winner.bet) * 0.95));
+
     setTimeout(async () => {
         await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } });
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
-        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 5000);
-    }, 11000);
+        setTimeout(() => { 
+            gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
+            io.emit('sync', gameState); 
+        }, 5000);
+    }, 13000); // 12с анимация + 1с запас
 }
