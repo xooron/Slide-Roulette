@@ -131,9 +131,11 @@
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand(); tg.headerColor = "#0a0a0c";
         let me = {}; let isSpinningLocal = false;
-        const SEGMENT_WIDTH = 93; // 85px + 4px*2 margin
+        const SEGMENT_WIDTH = 93; 
+        const SPIN_DURATION = 10000; // 10 секунд
 
         socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name });
+        
         socket.on('updateUserData', (data) => { me = data; updateUI(); });
         socket.on('updateUserDataTrigger', (p) => { if(p.id == tg.initDataUnsafe.user?.id) { me = p.data; updateUI(); } });
 
@@ -171,10 +173,18 @@
         function withdraw() { socket.emit('withdrawRequest', parseInt(document.getElementById('w-amt').value)); closeModal('withdraw-modal'); }
 
         socket.on('sync', (data) => {
-            if(isSpinningLocal) return; // Не трогаем ленту пока крутится
             document.getElementById('online-count').innerText = data.onlineCount;
+            if(isSpinningLocal) return; 
+
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
             const tape = document.getElementById('tape');
+            
+            // Если мы зашли, а рулетка уже крутится
+            if(data.isSpinning && data.spinStartTime) {
+                runSpinAnimation(data);
+                return;
+            }
+
             if(data.bank > 0) { 
                 tape.classList.add('slow-drift');
                 renderTape(data.players, data.bank);
@@ -184,6 +194,7 @@
                 document.getElementById('timer-label').innerText = "ОЖИДАНИЕ СТАВОК...";
                 tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             }
+
             document.getElementById('players-list').innerHTML = data.players.map(p => {
                 const chance = ((p.bet / (data.bank || 1)) * 100).toFixed(1);
                 return `<div class="player-row"><img src="${p.photo}" style="width:38px; height:38px; border-radius:12px; margin-right:15px;"><div style="flex:1; font-weight:700;">${p.name}</div><div style="color:var(--star); font-weight:900;">${p.bet.toLocaleString()} ⭐</div><span class="chance-tag">${chance}%</span></div>`;
@@ -206,25 +217,40 @@
         socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; });
 
         socket.on('startSpin', (data) => {
+            runSpinAnimation(data);
+        });
+
+        function runSpinAnimation(data) {
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
-            tape.style.transition = 'none';
-            tape.style.transform = 'translateX(0)';
             
-            // Отрисовываем ленту из серверных данных
+            // Отрисовываем ленту
             tape.innerHTML = data.tapeLayout.map(cell => `<div class="segment" style="border-bottom:4px solid ${cell.color}"><img src="${cell.photo}"></div>`).join('');
             
-            // Расчет смещения: индекс * ширину + половина ширины - половина экрана
             const targetIdx = data.winnerIndex;
-            const randomOffset = Math.floor(Math.random() * 40) - 20; // Небольшой рандом внутри сектора
-            const offset = (targetIdx * SEGMENT_WIDTH) - (window.innerWidth / 2) + (SEGMENT_WIDTH / 2) + randomOffset;
+            const offset = (targetIdx * SEGMENT_WIDTH) - (window.innerWidth / 2) + (SEGMENT_WIDTH / 2);
 
-            setTimeout(() => {
-                tape.style.transition = 'transform 10s cubic-bezier(0.1, 0, 0.05, 1)';
+            // Синхронизация времени при перезаходе
+            const now = Date.now();
+            const elapsed = now - data.spinStartTime;
+            
+            if (elapsed < SPIN_DURATION) {
+                tape.style.transition = 'none';
+                tape.style.transform = 'translateX(0)';
+                
+                setTimeout(() => {
+                    tape.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.1, 0, 0.05, 1)`;
+                    // Отрицательный delay позволяет начать анимацию с середины
+                    tape.style.transitionDelay = `-${elapsed}ms`;
+                    tape.style.transform = `translateX(-${offset}px)`;
+                }, 50);
+            } else {
+                // Если анимация уже должна была закончиться
+                tape.style.transition = 'none';
                 tape.style.transform = `translateX(-${offset}px)`;
-            }, 50);
-        });
+            }
+        }
 
         socket.on('winnerUpdate', (data) => {
             const winX = (data.winAmount / data.winnerBet).toFixed(1);
@@ -233,6 +259,10 @@
             document.getElementById('win-a').innerText = data.winAmount.toLocaleString(); 
             document.getElementById('win-x').innerText = `x${winX}`;
             
+            // УБИРАЕМ СПИСОК УЧАСТНИКОВ
+            document.getElementById('players-list').innerHTML = "";
+            document.getElementById('timer-label').innerText = "ПОБЕДИТЕЛЬ ОПРЕДЕЛЕН!";
+
             const m = document.getElementById('win-modal'); 
             m.style.display = 'flex'; 
             setTimeout(() => m.classList.add('show'), 50);
@@ -246,9 +276,11 @@
                     isSpinningLocal = false; 
                     const tape = document.getElementById('tape');
                     tape.style.transition = 'none';
+                    tape.style.transitionDelay = '0ms';
                     tape.style.transform = 'translateX(0)';
                     tape.classList.add('slow-drift');
                     renderEmptyTape(); 
+                    document.getElementById('bank-val').innerText = "0 ⭐";
                 }, 600);
             }, 5000);
         });
