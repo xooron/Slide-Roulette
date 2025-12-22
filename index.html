@@ -172,14 +172,14 @@
         }
 
         function copyMyLink() {
-            const bUser = "ВАШ_БОТ_USERNAME"; // ВПИШИ СЮДА ЮЗЕРНЕЙМ БОТА
+            const bUser = "slideroulettebot"; // ВПИШИ СЮДА ЮЗЕРНЕЙМ БОТА
             const link = `https://t.me/${bUser}?start=${tg.initDataUnsafe.user?.id}`;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Ссылка скопирована!");
         }
 
         function shareMyLink() {
-            const bUser = "ВАШ_БОТ_USERNAME"; // ВПИШИ СЮДА ЮЗЕРНЕЙМ БОТА
+            const bUser = "slideroulettebot"; // ВПИШИ СЮДА ЮЗЕРНЕЙМ БОТА
             const link = `https://t.me/${bUser}?start=${tg.initDataUnsafe.user?.id}`;
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=Заходи в рулетку! ⭐`);
         }
@@ -247,3 +247,4 @@
     </script>
 </body>
 </html>
+
