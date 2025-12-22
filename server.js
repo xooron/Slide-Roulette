@@ -27,14 +27,30 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server started on port ${PORT}`);
-    if (MONGODB_URI) {
-        mongoose.connect(MONGODB_URI).then(() => {
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
+mongoose.connect(MONGODB_URI).then(() => {
+    console.log("DB Connected");
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
+});
+
+// ОБРАБОТКА ПЛАТЕЖЕЙ (WEBHOOK)
+app.post('/webhook', async (req, res) => {
+    const update = req.body;
+    if (update.pre_checkout_query) {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
         });
     }
+    if (update.message && update.message.successful_payment) {
+        const payload = update.message.successful_payment.invoice_payload;
+        const userId = payload.split('_')[1];
+        const amount = parseInt(update.message.successful_payment.total_amount);
+        await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
+        const user = await User.findOne({ userId });
+        io.to(userId).emit('updateUserData', user);
+    }
+    res.sendStatus(200);
 });
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
@@ -51,20 +67,32 @@ io.on('connection', (socket) => {
         let user = await User.findOne({ userId: sId });
         if (!user) {
             let rId = userData.start_param;
-            user = new User({ 
-                userId: sId, username: userData.username, name: userData.name, 
-                referredBy: (rId && rId !== sId) ? rId : null,
-                balance: 10
-            });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (rId && rId !== sId) ? rId : null });
             await user.save();
             if (user.referredBy) {
-                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } });
+                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 10 } });
                 const r = await User.findOne({ userId: user.referredBy });
                 if (r) io.to(user.referredBy).emit('updateUserData', r);
             }
         }
         socket.userId = sId;
         socket.emit('updateUserData', user);
+    });
+
+    socket.on('createInvoice', async (amount) => {
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Пополнение ${amount} ⭐`,
+                description: `Звезды для Slide Roulette`,
+                payload: `dep_${socket.userId}`,
+                provider_token: "", currency: "XTR",
+                prices: [{ label: "Stars", amount: amount }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result, amount });
     });
 
     socket.on('makeBet', async (data) => {
@@ -76,19 +104,21 @@ io.on('connection', (socket) => {
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amt } });
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) { 
-            ex.bet += amt; 
-            ex.photo = data.photo; // Обновляем фото игрока при каждой ставке
-        } else {
-            gameState.players.push({ 
-                userId: socket.userId, name: data.name, photo: data.photo, 
-                bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` 
-            });
+        if (ex) { ex.bet += amt; ex.photo = data.photo; } else {
+            gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
         }
         gameState.bank += amt;
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    socket.on('adminGiveStars', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin && admin.username === ADMIN_USERNAME) {
+            const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
+            if (target) io.to(target.userId).emit('updateUserData', target);
+        }
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
@@ -117,21 +147,16 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5).slice(0, 100);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
-    gameState.winnerIndex = 85;
     io.emit('sync', gameState);
 
     const winAmount = Math.floor(currentBank * 0.95);
-    const multiplier = (winAmount / (winner.bet || 1)).toFixed(2);
-
     setTimeout(async () => {
         const winDoc = await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } }, { new: true });
-        
         if (winDoc.referredBy) {
             const b = Math.floor(winAmount * 0.01);
             if (b > 0) {
@@ -140,16 +165,11 @@ async function runGame() {
                 if (rUser) io.to(winDoc.referredBy).emit('updateUserData', rUser);
             }
         }
-
-        io.emit('winnerUpdate', { winner, winAmount, multiplier });
+        io.emit('winnerUpdate', { winner, winAmount });
         io.to(winner.userId).emit('updateUserData', winDoc);
-
-        setTimeout(() => { 
-            gameState.players = []; 
-            gameState.bank = 0; 
-            gameState.isSpinning = false; 
-            gameState.tapeLayout = []; 
-            io.emit('sync', gameState); 
-        }, 5000);
+        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 5000);
     }, 11000); 
 }
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, '0.0.0.0', () => console.log(`Server started`));
