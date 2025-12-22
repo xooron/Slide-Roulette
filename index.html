@@ -1,3 +1,4 @@
+<!-- ================= КЛИЕНТСКАЯ ЧАСТЬ (index.html) ================= -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -10,49 +11,38 @@
         :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; outline: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        
         body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 50% 20%, rgba(255, 215, 0, 0.05), transparent 50%); z-index: -1; }
-
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 75px; overflow: hidden; }
         .page.active { display: flex; }
-
         .top-nav { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
         .chip { background: var(--glass); padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; font-size: 14px; display: flex; gap: 6px; align-items: center; }
         .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; cursor: pointer; }
-
         .main-header { text-align: center; padding: 15px 0 5px 0; flex-shrink: 0; }
         .main-header h1 { font-size: 10px; color: var(--hint); letter-spacing: 2px; margin: 0; text-transform: uppercase; }
         .bank-val { font-size: 42px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 5px 0; }
-
         .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); pointer-events: none; }
         .tape { display: flex; height: 100%; align-items: center; transition: none; will-change: transform; transform: translateX(0); }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
-        
         .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; position: relative; }
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
-
         .bet-form { padding: 10px 16px; flex-shrink: 0; }
         .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); }
         .bet-input-box input { flex: 1; background: none; border: none; color: white; padding-left: 10px; font-size: 18px; font-weight: bold; width: 50px; }
         .btn-bet { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; }
         .btn-bet:disabled { background: #333; color: #666; cursor: not-allowed; }
-
         .players-list { flex: 1; overflow-y: auto; padding: 0 16px; margin-bottom: 5px; }
         .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin: 8px 0; border-radius: 15px; }
         .chance-tag { font-size: 10px; background: rgba(255,215,0,0.15); color: var(--star); padding: 4px 8px; border-radius: 8px; margin-left: auto; font-weight: 900; }
-
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 6px; cursor: pointer; transition: color 0.3s; }
         .nav-btn svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 1.5; fill: none; transition: stroke 0.3s; }
         .nav-btn.active { color: var(--star); }
-
         .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20, 20, 25, 0.98); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 215, 0, 0.4); display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(250%); transition: transform 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.2); box-shadow: 0 15px 50px rgba(0,0,0,0.9); }
         .modal-win.show { display: flex; transform: translateY(0); }
         .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .input-dark { width: 100%; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; color: white; text-align: center; font-size: 20px; margin: 15px 0; }
-
         .shop-container { padding: 20px 16px; }
         .shop-category { background: var(--glass); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
         .shop-category h3 { margin: 0 0 10px 0; color: var(--star); font-size: 18px; }
@@ -103,6 +93,9 @@
         <div style="padding:40px 20px; text-align:center;">
             <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:3px solid var(--star); margin-bottom:15px;">
             <h2 id="p-name" style="margin:0">Загрузка...</h2>
+            <!-- ТУТ ДОБАВЛЕН ЮЗЕРНЕЙМ -->
+            <div id="p-username" style="color:var(--hint); font-size:14px; margin-top:4px;"></div>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:30px;">
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-bal" style="color:var(--star); font-size:24px;">0</b><br><small>БАЛАНС</small></div>
                 <div style="background:var(--glass); padding:20px; border-radius:20px;"><b id="p-games" style="color:var(--star); font-size:24px;">0</b><br><small>ИГРЫ</small></div>
@@ -112,11 +105,11 @@
                 <input type="text" id="adm-user" placeholder="username" class="input-dark" style="font-size:14px; padding:10px;">
                 <input type="number" id="adm-amt" placeholder="Сумма" class="input-dark" style="font-size:14px; padding:10px; margin-top:0;">
                 <button class="btn-bet" style="width:100%" onclick="adminGive()">ВЫДАТЬ ⭐</button>
-                <button class="btn-bet" style="width:100%; background:#222; margin-top:10px;" onclick="socket.emit('adminAddBot')">БОТ</button>
             </div>
         </div>
     </div>
 
+    <!-- Навигация и модалки такие же -->
     <div class="nav">
         <div class="nav-btn active" onclick="switchTab('game', this)">
             <svg viewBox="0 0 24 24"><path d="M6 12h4m-2-2v4m5-2h.01m2.99 0h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -173,6 +166,11 @@
             document.getElementById('p-bal').innerText = (me.balance || 0).toLocaleString();
             document.getElementById('p-games').innerText = me.gamesPlayed || 0;
             document.getElementById('p-name').innerText = me.name;
+            
+            // ОБНОВЛЕНИЕ ЮЗЕРНЕЙМА В ПРОФИЛЕ
+            const userDisplay = me.username ? `@${me.username}` : '';
+            document.getElementById('p-username').innerText = userDisplay;
+
             document.getElementById('p-ava').src = tg.initDataUnsafe.user?.photo_url || `https://ui-avatars.com/api/?name=${me.name}`;
             if(me.username === 'maesexs') document.getElementById('admin-p').style.display = 'block';
         }
