@@ -7,15 +7,13 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
+// База подарков с прямыми ссылками на анимации
 const GIFT_MARKET = {
     "Lollipop": { price: 200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765452.160.webm" },
     "Rose": { price: 150, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765455.160.webm" },
     "Diamond": { price: 3000, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765448.160.webm" },
     "Cake": { price: 800, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765461.160.webm" },
-    "Heart": { price: 1200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765445.160.webm" },
-    "Teddy": { price: 2500, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765458.160.webm" },
-    "Perfume": { price: 1000, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765442.160.webm" },
-    "Coffee": { price: 100, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765439.160.webm" }
+    "Heart": { price: 1200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765445.160.webm" }
 };
 
 const app = express();
@@ -73,28 +71,23 @@ io.on('connection', (socket) => {
         if (isNaN(amt) || amt < 1) return;
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < amt) return;
-
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amt } });
-        addPlayerToGame(socket.userId, data.name, data.photo, amt);
+        addPlayer(socket.userId, user.name, data.photo, amt);
     });
 
-    // НОВАЯ ФУНКЦИЯ: СТАВКА ПОДАРКОМ
     socket.on('betWithNFT', async (itemId) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         if (!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
-
-        const betValue = item.price;
-        // Удаляем подарок и добавляем ставку
+        const val = item.price;
         await User.updateOne({ userId: socket.userId }, { $pull: { inventory: { itemId: itemId } } });
-        
-        addPlayerToGame(socket.userId, user.name, "", betValue); // фото возьмется из сессии или профиля
+        addPlayer(socket.userId, user.name, "", val);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    function addPlayerToGame(userId, name, photo, amt) {
+    function addPlayer(userId, name, photo, amt) {
         let p = gameState.players.find(x => x.userId === userId);
         if (p) { p.bet += amt; } else {
             gameState.players.push({ userId, name, photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
@@ -107,7 +100,7 @@ io.on('connection', (socket) => {
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin?.username !== ADMIN_USERNAME) return;
-        const cleanUser = data.targetUsername.replace('@','');
+        const cleanUser = data.targetUsername.replace('@','').trim();
         const gift = GIFT_MARKET[data.amount];
         if (gift) {
             await User.findOneAndUpdate({ username: new RegExp(`^${cleanUser}$`, "i") }, { $push: { inventory: { itemId: Date.now().toString(), name: data.amount, image: gift.img, price: gift.price } } });
@@ -124,15 +117,6 @@ io.on('connection', (socket) => {
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-    });
-
-    socket.on('toggleStake', async (itemId) => {
-        const user = await User.findOne({ userId: socket.userId });
-        const item = user.inventory.find(i => i.itemId === itemId);
-        if (!item) return;
-        const newState = !item.isStaked;
-        await User.updateOne({ userId: socket.userId, "inventory.itemId": itemId }, { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
@@ -162,7 +146,6 @@ async function runGame() {
             let count = Math.ceil((p.bet / (currentBank || 1)) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if(gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
