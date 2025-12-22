@@ -24,13 +24,13 @@
         .main-header h1 { font-size: 10px; color: var(--hint); letter-spacing: 2px; margin: 0; text-transform: uppercase; }
         .bank-val { font-size: 42px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 5px 0; }
 
-        .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
-        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); }
-        .tape { display: flex; height: 100%; align-items: center; will-change: transform; }
+        .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); pointer-events: none; }
+        .tape { display: flex; height: 100%; align-items: center; transition: none; will-change: transform; transform: translateX(0); }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
         
-        .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; position: relative; }
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
 
         .bet-form { padding: 10px 16px; flex-shrink: 0; }
@@ -39,7 +39,7 @@
         .btn-bet { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; }
 
         .players-list { flex: 1; overflow-y: auto; padding: 0 16px; margin-bottom: 5px; }
-        .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin: 8px 16px; border-radius: 15px; }
+        .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin: 8px 0; border-radius: 15px; }
         .chance-tag { font-size: 10px; background: rgba(255,215,0,0.15); color: var(--star); padding: 4px 8px; border-radius: 8px; margin-left: auto; font-weight: 900; }
 
         .nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
@@ -109,7 +109,6 @@
         <div id="win-x" style="background:var(--gold); color:black; padding:5px 10px; border-radius:10px; font-weight:900;">x1.0</div>
     </div>
 
-    <!-- Обновленные суммы пополнения -->
     <div id="buy-modal" class="modal-basic">
         <h2 style="margin-bottom:15px;">Пополнить звезды</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
@@ -132,6 +131,7 @@
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand(); tg.headerColor = "#0a0a0c";
         let me = {}; let isSpinningLocal = false;
+        const SEGMENT_WIDTH = 93; // 85px + 4px*2 margin
 
         socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name });
         socket.on('updateUserData', (data) => { me = data; updateUI(); });
@@ -162,10 +162,8 @@
 
         function makeBet() {
             const val = parseInt(document.getElementById('bet-input').value);
-            // ПРОВЕРКА НА КОРРЕКТНОСТЬ СТАВКИ
             if (isNaN(val) || val <= 0) return tg.showAlert("Ставка должна быть больше 0!");
             if (val > me.balance) return tg.showAlert("Недостаточно звезд!");
-            
             socket.emit('makeBet', { name: me.name, photo: tg.initDataUnsafe.user?.photo_url || `https://ui-avatars.com/api/?name=${me.name}`, bet: val });
         }
 
@@ -173,7 +171,7 @@
         function withdraw() { socket.emit('withdrawRequest', parseInt(document.getElementById('w-amt').value)); closeModal('withdraw-modal'); }
 
         socket.on('sync', (data) => {
-            if(isSpinningLocal) return;
+            if(isSpinningLocal) return; // Не трогаем ленту пока крутится
             document.getElementById('online-count').innerText = data.onlineCount;
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
             const tape = document.getElementById('tape');
@@ -200,7 +198,9 @@
                 let count = Math.max(Math.round((p.bet / bank) * 15), 1);
                 for(let i=0; i<count; i++) pool.push(`<div class="segment" style="border-bottom:4px solid ${p.color}"><img src="${p.photo}"></div>`);
             });
-            document.getElementById('tape').innerHTML = pool.join('') + pool.join('') + pool.join('') + pool.join('');
+            let items = pool.length > 0 ? pool : [];
+            while(items.length < 30 && items.length > 0) items = items.concat(items);
+            document.getElementById('tape').innerHTML = items.slice(0, 40).join('');
         }
 
         socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = `СТАРТ ЧЕРЕЗ ${t} СЕК`; });
@@ -209,30 +209,46 @@
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
+            tape.style.transition = 'none';
+            tape.style.transform = 'translateX(0)';
+            
+            // Отрисовываем ленту из серверных данных
             tape.innerHTML = data.tapeLayout.map(cell => `<div class="segment" style="border-bottom:4px solid ${cell.color}"><img src="${cell.photo}"></div>`).join('');
             
-            const nodes = Array.from(tape.children);
-            const targetIdx = nodes.findLastIndex((el, idx) => idx < 220 && idx > 160 && el.innerHTML.includes(data.winner.photo)) || 180;
-            const offset = (targetIdx * 93) - (window.innerWidth / 2) + 46;
+            // Расчет смещения: индекс * ширину + половина ширины - половина экрана
+            const targetIdx = data.winnerIndex;
+            const randomOffset = Math.floor(Math.random() * 40) - 20; // Небольшой рандом внутри сектора
+            const offset = (targetIdx * SEGMENT_WIDTH) - (window.innerWidth / 2) + (SEGMENT_WIDTH / 2) + randomOffset;
 
             setTimeout(() => {
-                tape.style.transition = 'transform 13s cubic-bezier(0.15, 0, 0.05, 1)';
+                tape.style.transition = 'transform 10s cubic-bezier(0.1, 0, 0.05, 1)';
                 tape.style.transform = `translateX(-${offset}px)`;
-            }, 100);
+            }, 50);
         });
 
         socket.on('winnerUpdate', (data) => {
             const winX = (data.winAmount / data.winnerBet).toFixed(1);
-            document.getElementById('win-ava').src = data.winner.photo; document.getElementById('win-n').innerText = data.winner.name;
-            document.getElementById('win-a').innerText = data.winAmount.toLocaleString(); document.getElementById('win-x').innerText = `x${winX}`;
-            const m = document.getElementById('win-modal'); m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 50);
+            document.getElementById('win-ava').src = data.winner.photo; 
+            document.getElementById('win-n').innerText = data.winner.name;
+            document.getElementById('win-a').innerText = data.winAmount.toLocaleString(); 
+            document.getElementById('win-x').innerText = `x${winX}`;
+            
+            const m = document.getElementById('win-modal'); 
+            m.style.display = 'flex'; 
+            setTimeout(() => m.classList.add('show'), 50);
+            
             tg.HapticFeedback.notificationOccurred('success');
+
             setTimeout(() => {
                 m.classList.remove('show');
                 setTimeout(() => { 
-                    m.style.display = 'none'; isSpinningLocal = false; renderEmptyTape(); 
-                    const tape = document.getElementById('tape'); tape.classList.add('slow-drift');
-                    tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
+                    m.style.display = 'none'; 
+                    isSpinningLocal = false; 
+                    const tape = document.getElementById('tape');
+                    tape.style.transition = 'none';
+                    tape.style.transform = 'translateX(0)';
+                    tape.classList.add('slow-drift');
+                    renderEmptyTape(); 
                 }, 600);
             }, 5000);
         });
