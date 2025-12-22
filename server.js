@@ -1,4 +1,4 @@
-Мconst express = require('express');
+const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
@@ -80,7 +80,10 @@ io.on('connection', (socket) => {
         gameState.bank += betAmount;
         gameState.players.sort((a, b) => b.bet - a.bet);
 
-        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
+        if (gameState.players.length >= 2 && !countdownInterval && !gameState.isSpinning) {
+            startCountdown();
+        }
+        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -132,6 +135,7 @@ io.on('connection', (socket) => {
 });
 
 function startCountdown() {
+    if (countdownInterval) return;
     gameState.timeLeft = 10;
     countdownInterval = setInterval(() => {
         gameState.timeLeft--;
@@ -145,6 +149,8 @@ function startCountdown() {
 }
 
 function runGame() {
+    if (gameState.isSpinning || gameState.players.length < 2) return;
+    
     gameState.isSpinning = true;
     gameState.spinStartTime = Date.now();
     
@@ -158,6 +164,7 @@ function runGame() {
         if (winnerRandom <= current) { winner = p; break; }
     }
 
+    // Создаем ленту
     let tape = [];
     const players = gameState.players;
     for(let i=0; i<100; i++) {
@@ -173,19 +180,26 @@ function runGame() {
 
     io.emit('startSpin', gameState);
 
+    // Расчет выигрыша: СтавкаПобедителя + (ОстальнойБанк * 0.95)
+    const otherBets = currentBank - winner.bet;
+    const winAmount = Math.floor(winner.bet + (otherBets * 0.95));
+
     setTimeout(async () => {
-        const winAmount = Math.floor(currentBank * 0.95);
         const playerIds = gameState.players.map(p => p.userId);
-        
+        const savedWinnerId = winner.userId;
+        const savedPlayers = [...gameState.players];
+
+        // Начисляем баланс
         await User.updateMany({ userId: { $in: playerIds } }, { $inc: { gamesPlayed: 1 } });
-        await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
+        await User.updateOne({ userId: savedWinnerId }, { $inc: { balance: winAmount } });
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
 
+        // Обновляем данные у всех участников
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        // Блокируем новые ставки еще на 5 секунд, пока висит окно победителя
+        // Сброс состояния через 5 секунд после остановки колеса
         setTimeout(() => {
             gameState.players = []; 
             gameState.bank = 0; 
