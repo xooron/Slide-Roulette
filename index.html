@@ -11,34 +11,24 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; outline: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 50% 20%, rgba(255, 215, 0, 0.05), transparent 50%); z-index: -1; }
-
-        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 75px; overflow: hidden; }
+        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 75px; }
         .page.active { display: flex; }
-
         .top-nav { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .chip { background: var(--glass); padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
-        .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; }
-
+        .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; cursor: pointer; }
         .bank-val { font-size: 42px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 5px 0; }
-
         .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
-        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); }
+        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         .tape { display: flex; height: 100%; align-items: center; transition: none; will-change: transform; }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
-        
-        .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
-
-        .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); margin: 10px 16px; }
-        .bet-input-box input { flex: 1; background: none; border: none; color: white; padding-left: 10px; font-size: 18px; font-weight: bold; width: 50px; }
-
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 6px; }
         .nav-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.5; }
         .nav-btn.active { color: var(--star); }
-
-        .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 24px; border: 1px solid gold; display: none; align-items: center; padding: 16px; transform: translateY(250%); transition: 0.6s; }
+        .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 24px; border: 1px solid gold; display: none; align-items: center; padding: 16px; transform: translateY(250%); transition: 0.6s; z-index: 2000; }
         .modal-win.show { display: flex; transform: translateY(0); }
     </style>
 </head>
@@ -54,8 +44,8 @@
             <div id="timer-label" style="font-size:11px; color:var(--hint); font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
         </div>
         <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
-        <div class="bet-input-box">
-            <input type="number" id="bet-input" value="10">
+        <div style="display:flex; gap:10px; background:var(--glass); padding:8px; border-radius:18px; margin:10px 16px;">
+            <input type="number" id="bet-input" value="10" style="flex:1; background:none; border:none; color:white; font-weight:bold; padding-left:10px;">
             <button onclick="makeBet()" style="background:var(--gold); border:none; padding:12px 25px; border-radius:14px; font-weight:900;">СТАВКА</button>
         </div>
         <div id="players-list" style="flex:1; overflow-y:auto; padding:0 16px;"></div>
@@ -65,7 +55,7 @@
         <div style="padding:20px; text-align:center;">
             <h2>Магазин</h2>
             <div style="background:var(--glass); border-radius:20px; padding:30px;">
-                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:150px; display:block; margin:auto;">
+                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:120px; margin-bottom:15px;">
                 <p>Пусто</p>
             </div>
         </div>
@@ -73,7 +63,7 @@
 
     <div id="profile-page" class="page">
         <div style="padding:40px 20px; text-align:center;">
-            <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:3px solid var(--star);">
+            <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:3px solid var(--star); margin-bottom:15px;">
             <h2 id="p-name">Загрузка...</h2>
             <div id="p-username" style="color:var(--hint); font-size:14px; margin-top:5px; margin-bottom:25px;"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
@@ -111,10 +101,10 @@
     <div id="buy-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; z-index:1000;">
         <h2>Пополнить звезды</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
-            <button onclick="pay(25)" style="background:gold; border:none; padding:15px; border-radius:10px;">25 ⭐</button>
-            <button onclick="pay(50)" style="background:gold; border:none; padding:15px; border-radius:10px;">50 ⭐</button>
-            <button onclick="pay(100)" style="background:gold; border:none; padding:15px; border-radius:10px;">100 ⭐</button>
-            <button onclick="pay(250)" style="background:gold; border:none; padding:15px; border-radius:10px;">250 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:50px; font-size:14px;" onclick="pay(25)">25 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:50px; font-size:14px;" onclick="pay(50)">50 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:50px; font-size:14px;" onclick="pay(100)">100 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:50px; font-size:14px;" onclick="pay(250)">250 ⭐</button>
         </div>
         <div onclick="closeModal('buy-modal')" style="margin-top:25px; color:gray;">Отмена</div>
     </div>
@@ -145,7 +135,11 @@
         }
 
         function pay(amt) { closeModal('buy-modal'); socket.emit('createInvoice', amt); }
-        socket.on('invoiceLink', (d) => { tg.openInvoice(d.url, (st) => { if(st === 'paid') socket.emit('paymentSuccess', d.amount); }); });
+        socket.on('invoiceLink', (d) => { 
+            tg.openInvoice(d.url, (status) => {
+                if(status === 'paid') socket.emit('paymentSuccess', d.amount);
+            });
+        });
 
         function makeBet() {
             if(isSpinningLocal) return;
@@ -184,8 +178,11 @@
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment" style="border-bottom:4px solid ${c.color}"><img src="${c.photo}"></div>`).join('');
-            const offset = (data.winnerIndex * 93) - (window.innerWidth / 2) + 46;
-            tape.style.transition = 'transform 10s cubic-bezier(0.1, 0, 0.05, 1)';
+            
+            const segmentWidth = 93; 
+            const offset = (data.winnerIndex * segmentWidth) - (window.innerWidth / 2) + (segmentWidth / 2);
+            
+            tape.style.transition = 'transform 12s cubic-bezier(0.1, 0, 0.05, 1)';
             tape.style.transform = `translateX(-${offset}px)`;
         }
 
