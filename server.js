@@ -10,7 +10,7 @@ const ADMIN_USERNAME = 'maesexs';
 // База цен и данных подарков
 const GIFT_MARKET = {
     "Lollipop": { price: 150, img: "https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" },
-    "Rose": { price: 100, img: "https://static.tgstat.ru/stickers/v2/a/123.webp" }, // Замените на реальные URL
+    "Rose": { price: 100, img: "https://static.tgstat.ru/stickers/v2/a/123.webp" },
     "Diamond": { price: 500, img: "https://static.tgstat.ru/stickers/v2/a/456.webp" },
     "Cake": { price: 200, img: "https://static.tgstat.ru/stickers/v2/a/789.webp" },
     "Heart": { price: 300, img: "https://static.tgstat.ru/stickers/v2/a/101.webp" }
@@ -44,6 +44,26 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
+
+app.post('/webhook', async (req, res) => {
+    const update = req.body;
+    if (update.pre_checkout_query) {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
+        });
+    }
+    if (update.message?.successful_payment) {
+        const payload = update.message.successful_payment.invoice_payload;
+        const userId = payload.split('_')[1];
+        const amount = parseInt(update.message.successful_payment.total_amount);
+        await User.updateOne({ userId }, { $inc: { balance: amount } });
+        const user = await User.findOne({ userId });
+        io.to(userId).emit('updateUserData', user);
+    }
+    res.sendStatus(200);
+});
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
@@ -83,12 +103,12 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    // Админ-панель: выдача Звезд или конкретного Подарка
+    // ФИКС ОШИБКИ NaN В АДМИНКЕ
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin?.username !== ADMIN_USERNAME) return;
         const cleanUser = data.targetUsername.replace('@', '').trim();
-        const gift = GIFT_MARKET[data.amount]; // Если в поле "amount" введено название подарка
+        const gift = GIFT_MARKET[data.amount];
 
         if (gift) {
             const target = await User.findOneAndUpdate(
@@ -99,6 +119,8 @@ io.on('connection', (socket) => {
             if (target) io.to(target.userId).emit('updateUserData', target);
         } else {
             const amt = parseInt(data.amount);
+            if (isNaN(amt)) return; // Если введено не число и не название подарка - игнорируем
+            
             const target = await User.findOneAndUpdate(
                 { username: new RegExp(`^${cleanUser}$`, "i") },
                 { $inc: { balance: amt } },
@@ -108,7 +130,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Обмен NFT на Звезды
     socket.on('exchangeNFT', async (itemId) => {
         const user = await User.findOne({ userId: socket.userId });
         const item = user.inventory.find(i => i.itemId === itemId);
@@ -121,7 +142,6 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    // Стейкинг
     socket.on('toggleStake', async (itemId) => {
         const user = await User.findOne({ userId: socket.userId });
         const item = user.inventory.find(i => i.itemId === itemId);
@@ -133,6 +153,22 @@ io.on('connection', (socket) => {
             { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } }
         );
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    socket.on('createInvoice', async (amount) => {
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Купить ${amount} ⭐`,
+                description: `Звезды для Slide Roulette`,
+                payload: `dep_${socket.userId}`,
+                provider_token: "", currency: "XTR",
+                prices: [{ label: "Stars", amount: amount }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result });
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
@@ -161,6 +197,7 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
+        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
@@ -180,4 +217,5 @@ async function runGame() {
     }, 11000);
 }
 
-server.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log(`Server started`));
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, '0.0.0.0', () => console.log(`Server started`));
