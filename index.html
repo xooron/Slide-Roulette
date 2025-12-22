@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Slide Roulette</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -12,36 +12,26 @@
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; }
         .page.active { display: flex; }
-        
         .top-nav { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); }
-        .chip { background: var(--glass); padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; font-size: 14px; display: flex; gap: 6px; }
+        .chip { background: var(--glass); padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
         .btn-plus { background: var(--gold); border: none; width: 34px; height: 34px; border-radius: 10px; color: #000; font-size: 22px; font-weight: 900; }
-
         .bank-val { font-size: 42px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
-
-        .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
-        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; box-shadow: 0 0 15px var(--star); transform: translateX(-50%); }
+        .roulette-wrap { position: relative; width: 100%; height: 110px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; }
+        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         .tape { display: flex; transition: none; will-change: transform; }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1500px); } }
-        
         .segment { flex-shrink: 0; width: 85px; height: 85px; margin: 0 4px; background: var(--glass); border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
         .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
-
-        .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; margin: 10px 16px; border: 1px solid rgba(255,255,255,0.1); }
+        .bet-input-box { display: flex; gap: 10px; background: var(--glass); padding: 8px; border-radius: 18px; margin: 10px 16px; }
         .bet-input-box input { flex: 1; background: none; border: none; color: white; font-size: 18px; font-weight: bold; padding-left: 10px; }
         .btn-bet { background: var(--gold); border: none; padding: 12px 25px; border-radius: 14px; font-weight: 900; cursor: pointer; }
-
-        .players-list { flex: 1; overflow-y: auto; padding: 0 16px; }
-        .player-row { display: flex; align-items: center; padding: 12px; background: var(--glass); margin: 8px 0; border-radius: 15px; }
-
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; }
         .nav-btn.active { color: var(--star); }
-
         .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: #141419; border-radius: 24px; border: 1px solid gold; display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(200%); transition: 0.5s; }
         .modal-win.show { display: flex; transform: translateY(0); }
-        .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         .input-dark { width: 100%; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; color: white; text-align: center; margin: 10px 0; }
     </style>
 </head>
@@ -49,14 +39,13 @@
 
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div>Online: <b id="online-count" style="color:#00ff00">0</b></div>
+            <div style="font-size:11px;">Online: <b id="online-count" style="color:#00ff00">0</b></div>
             <div style="display:flex; align-items:center; gap:8px;">
                 <div class="chip"><span id="bal-game">0</span> ⭐</div>
                 <button class="btn-plus" onclick="openModal('buy-modal')">+</button>
             </div>
         </div>
         <div style="text-align:center; padding:15px;">
-            <h1 style="font-size:10px; color:var(--hint); margin:0;">ОБЩИЙ БАНК</h1>
             <div class="bank-val" id="bank-val">0 ⭐</div>
             <div id="timer-label" style="font-size:11px; font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
         </div>
@@ -65,7 +54,7 @@
             <input type="number" id="bet-input" value="10">
             <button id="bet-btn" class="btn-bet" onclick="makeBet()">СТАВКА</button>
         </div>
-        <div id="players-list" class="players-list"></div>
+        <div id="players-list" style="flex:1; overflow-y:auto; padding:0 16px;"></div>
     </div>
 
     <div id="shop-page" class="page">
@@ -73,8 +62,8 @@
             <h2>Магазин</h2>
             <div style="background:var(--glass); padding:30px; border-radius:20px;">
                 <h3>🎁 Гифты</h3>
-                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:100px;">
-                <p style="color:gray;">Скоро в продаже...</p>
+                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:120px; margin:15px 0;">
+                <p style="color:gray;">Пусто</p>
             </div>
         </div>
     </div>
@@ -167,10 +156,8 @@
             document.getElementById('online-count').innerText = data.onlineCount;
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
             if(data.isSpinning && !isSpinningLocal) runSpinAnimation(data);
-            
             if(!data.isSpinning) {
-                const list = document.getElementById('players-list');
-                list.innerHTML = data.players.map(p => `<div class="player-row"><img src="${p.photo}" style="width:38px; height:38px; border-radius:10px; margin-right:12px;"><b>${p.name}</b><span style="margin-left:auto; color:gold;">${p.bet} ⭐</span></div>`).join('');
+                document.getElementById('players-list').innerHTML = data.players.map(p => `<div style="display:flex; align-items:center; background:rgba(255,255,255,0.05); padding:10px; margin-bottom:8px; border-radius:12px;"><img src="${p.photo}" style="width:35px; height:35px; border-radius:8px; margin-right:12px;"><b>${p.name}</b><span style="margin-left:auto; color:gold;">${p.bet} ⭐</span></div>`).join('');
             }
         });
 
@@ -191,11 +178,13 @@
             document.getElementById('win-n').innerText = data.winner.name;
             document.getElementById('win-a').innerText = data.winAmount.toLocaleString();
             const m = document.getElementById('win-modal'); m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 50);
+            tg.HapticFeedback.notificationOccurred('success');
             setTimeout(() => {
                 m.classList.remove('show');
                 setTimeout(() => { 
                     m.style.display = 'none'; isSpinningLocal = false; 
                     const tape = document.getElementById('tape'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)'; tape.classList.add('slow-drift');
+                    document.getElementById('bank-val').innerText = "0 ⭐";
                 }, 500);
             }, 5000);
         });
