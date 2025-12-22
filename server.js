@@ -41,35 +41,9 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI).then(async () => {
-    console.log("DB Connected");
-    // ОБНУЛЕНИЕ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Баланс и Инвентарь)
-    await User.updateMany({}, { $set: { balance: 0, inventory: [] } });
-    console.log("All users balance and inventory reset.");
-});
+mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
-// Обработка платежа
-app.post('/webhook', async (req, res) => {
-    const update = req.body;
-    if (update.pre_checkout_query) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        });
-    }
-    if (update.message?.successful_payment) {
-        const payload = update.message.successful_payment.invoice_payload;
-        const userId = payload.split('_')[1];
-        const amount = parseInt(update.message.successful_payment.total_amount);
-        await User.updateOne({ userId }, { $inc: { balance: amount } });
-        const user = await User.findOne({ userId });
-        if (user) io.to(userId).emit('updateUserData', user);
-    }
-    res.sendStatus(200);
-});
-
-let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
+let gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
@@ -83,7 +57,7 @@ io.on('connection', (socket) => {
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 10 });
             await user.save();
         }
         socket.emit('updateUserData', user);
@@ -95,7 +69,11 @@ io.on('connection', (socket) => {
         if (isNaN(amt) || amt < 1) return;
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < amt) return;
-        await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amt } });
+        
+        // Мгновенное списание баланса
+        const updatedUser = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: -amt } }, { new: true });
+        socket.emit('updateUserData', updatedUser);
+        
         addPlayer(socket.userId, user.name, data.photo, amt, null);
     });
 
@@ -105,11 +83,20 @@ io.on('connection', (socket) => {
         if (!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
+
         const val = item.price;
-        const nftImg = item.image;
-        await User.updateOne({ userId: socket.userId }, { $pull: { inventory: { itemId: itemId } } });
-        addPlayer(socket.userId, user.name, "", val, nftImg);
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+        const nftData = { itemId: item.itemId, name: item.name, image: item.image, price: item.price };
+        
+        // Мгновенное удаление из инвентаря
+        const updatedUser = await User.findOneAndUpdate(
+            { userId: socket.userId }, 
+            { $pull: { inventory: { itemId: itemId } } }, 
+            { new: true }
+        );
+        socket.emit('updateUserData', updatedUser);
+
+        gameState.potNFTs.push(nftData); // Добавляем в банк раунда
+        addPlayer(socket.userId, user.name, "", val, item.image);
     });
 
     function addPlayer(userId, name, photo, amt, nftImg) {
@@ -125,25 +112,9 @@ io.on('connection', (socket) => {
         io.emit('sync', gameState);
     }
 
-    socket.on('createInvoice', async (amount) => {
-        if(!socket.userId) return;
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Купить ${amount} ⭐`,
-                description: `Пополнение баланса Slide Roulette`,
-                payload: `dep_${socket.userId}`,
-                provider_token: "", currency: "XTR",
-                prices: [{ label: "Stars", amount: amount }]
-            })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result });
-    });
-
     socket.on('exchangeNFT', async (itemId) => {
         const user = await User.findOne({ userId: socket.userId });
+        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
@@ -190,6 +161,7 @@ async function runGame() {
     if (gameState.isSpinning || gameState.players.length < 2) return;
     gameState.isSpinning = true;
     const currentBank = gameState.bank;
+    const currentNFTs = [...gameState.potNFTs]; // Копируем NFT банка
     const winnerRandom = Math.random() * currentBank;
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
@@ -212,10 +184,26 @@ async function runGame() {
     const multiplier = (winAmount / (winner.bet || 1)).toFixed(2);
 
     setTimeout(async () => {
-        const winDoc = await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } }, { new: true });
+        // Начисляем выигрыш + добавляем все NFT из банка в инвентарь победителя
+        const winDoc = await User.findOneAndUpdate(
+            { userId: winner.userId }, 
+            { 
+                $inc: { balance: winAmount, gamesPlayed: 1 },
+                $push: { inventory: { $each: currentNFTs } } 
+            }, 
+            { new: true }
+        );
+        
         io.emit('winnerUpdate', { winner, winAmount, multiplier });
         if(winDoc) io.to(winner.userId).emit('updateUserData', winDoc);
-        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 6000);
+        
+        setTimeout(() => { 
+            gameState.players = []; 
+            gameState.bank = 0; 
+            gameState.potNFTs = []; // Очищаем банк NFT
+            gameState.isSpinning = false; 
+            io.emit('sync', gameState); 
+        }, 6000);
     }, 11000);
 }
 
