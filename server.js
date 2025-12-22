@@ -52,10 +52,9 @@ io.on('connection', (socket) => {
         if (!user) {
             let rId = userData.start_param;
             user = new User({ 
-                userId: sId, 
-                username: userData.username, 
-                name: userData.name, 
-                referredBy: (rId && rId !== sId) ? rId : null 
+                userId: sId, username: userData.username, name: userData.name, 
+                referredBy: (rId && rId !== sId) ? rId : null,
+                balance: 10 // Стартовый бонус
             });
             await user.save();
             if (user.referredBy) {
@@ -79,14 +78,11 @@ io.on('connection', (socket) => {
         let ex = gameState.players.find(p => p.userId === socket.userId);
         if (ex) { 
             ex.bet += amt; 
-            ex.photo = data.photo; // Обновляем фото
+            ex.photo = data.photo; 
         } else {
             gameState.players.push({ 
-                userId: socket.userId, 
-                name: data.name, 
-                photo: data.photo, 
-                bet: amt, 
-                color: `hsl(${Math.random()*360}, 70%, 60%)` 
+                userId: socket.userId, name: data.name, photo: data.photo, 
+                bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` 
             });
         }
         gameState.bank += amt;
@@ -115,7 +111,6 @@ async function runGame() {
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
-    // ГЕНЕРАЦИЯ ЛЕНТЫ (100 ячеек)
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
@@ -125,7 +120,7 @@ async function runGame() {
         if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5).slice(0, 100);
-    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name }; // Победитель
+    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
     gameState.winnerIndex = 85;
