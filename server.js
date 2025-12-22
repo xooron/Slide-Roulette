@@ -3,20 +3,16 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 
-// Настройки из переменных окружения
+// Настройки
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
-
-// ТВОЯ ССЫЛКА (Уже исправлена):
-const APP_URL = "https://slide-roulette.onrender.com"; 
+const APP_URL = "https://slide-roulette.onrender.com"; // Твоя правильная ссылка
 
 const app = express();
-app.use(express.json()); 
+app.use(express.json());
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(__dirname));
 
@@ -29,46 +25,57 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// 1. Сначала запускаем сервер (чтобы Render не выдавал ошибку порта)
+// ВАЖНО: Сначала запускаем сервер, чтобы Render сразу увидел порт!
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-    console.log(`Server started on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
     
-    // 2. Только ПОСЛЕ запуска сервера подключаем БД и ставим вебхук
+    // Подключаем БД только после старта сервера
     if (MONGODB_URI) {
         mongoose.connect(MONGODB_URI).then(() => {
             console.log("DB Connected");
-            // Установка вебхука Telegram
+            // Ставим вебхук
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`)
-                .then(() => console.log("Webhook set to:", APP_URL + "/webhook"))
-                .catch(err => console.error("Webhook error:", err));
+                .then(() => console.log("Webhook updated to:", APP_URL))
+                .catch(e => console.error("Webhook error:", e));
         });
     }
 });
 
-// Обработка платежей
+// Обработка платежей (Webhook)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
+    
+    // 1. Сразу отвечаем на PreCheckout (убирает бесконечную загрузку)
     if (update.pre_checkout_query) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        }).catch(e => console.error(e));
+        try {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pre_checkout_query_id: update.pre_checkout_query.id,
+                    ok: true
+                })
+            });
+        } catch (e) { console.error("Error answering checkout:", e); }
     }
+
+    // 2. Начисляем звезды
     if (update.message && update.message.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
         const amount = update.message.successful_payment.total_amount;
+        
         await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
         const user = await User.findOne({ userId });
         io.to(userId).emit('updateUserData', user);
         io.to(userId).emit('notify', `Зачислено ${amount} ⭐!`);
     }
+
     res.sendStatus(200);
 });
 
-// Логика игры
+// Логика Socket.io
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 0, spinStartTime: 0 };
 let countdownInterval = null;
 
@@ -122,14 +129,6 @@ io.on('connection', (socket) => {
         });
         const d = await res.json();
         if (d.ok) socket.emit('invoiceLink', { url: d.result, amount });
-    });
-
-    socket.on('adminGiveStars', async (data) => {
-        const admin = await User.findOne({ userId: socket.userId });
-        if (admin && admin.username === ADMIN_USERNAME) {
-            const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
-            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
-        }
     });
 
     socket.on('disconnect', () => { 
