@@ -21,9 +21,14 @@
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
         .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
+        
+        /* БЕСКОНЕЧНАЯ ЛЕНТА ОЖИДАНИЯ */
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
-        .slow-drift { animation: driftAnim 120s linear infinite; }
-        @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-15000px); } }
+        .slow-drift { animation: driftAnim 120s linear infinite; width: max-content; }
+        @keyframes driftAnim { 
+            from { transform: translateX(0); } 
+            to { transform: translateX(-50%); } /* Движемся на половину длины дублированной ленты */
+        }
         
         .segment { flex-shrink: 0; width: 70px; height: 70px; margin: 0 4px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
         .segment img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #222; }
@@ -72,17 +77,6 @@
         <div id="players-list"></div>
     </div>
 
-    <div id="shop-page" class="page">
-        <div style="padding: 20px; text-align:center; padding-top: 40px;">
-            <h2>Магазин</h2>
-            <div style="background:var(--glass); border-radius:24px; padding:40px; border: 1px solid rgba(255,255,255,0.05);">
-                <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:120px; margin-bottom:20px;">
-                <p style="color:var(--hint);">Магазин временно на обновлении</p>
-                <button class="action-btn" onclick="switchTab('game')">Вернуться к игре</button>
-            </div>
-        </div>
-    </div>
-
     <div id="profile-page" class="page">
         <div style="padding: 20px 0; text-align:center; padding-top: calc(20px + env(safe-area-inset-top));">
             <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--star); object-fit:cover;">
@@ -99,7 +93,7 @@
 
         <div id="admin-p" style="display:none; margin: 16px; padding: 15px; border: 1px dashed gold; border-radius: 15px;">
             <input type="text" id="adm-user" placeholder="@username" style="width:100%; padding:10px; margin-bottom:10px; background:#111; color:white; border:1px solid #333;">
-            <input type="text" id="adm-amt" placeholder="Сумма или PlushPepe" style="width:100%; padding:10px; margin-bottom:10px; background:#111; color:white; border:1px solid #333;">
+            <input type="text" id="adm-amt" placeholder="Сумма или Название (PlushPepe)" style="width:100%; padding:10px; margin-bottom:10px; background:#111; color:white; border:1px solid #333;">
             <button onclick="adminGive()" style="width:100%; background:var(--gold); padding:10px; border:none; border-radius:10px; font-weight:bold; color:#000;">ВЫПОЛНИТЬ</button>
         </div>
     </div>
@@ -114,20 +108,17 @@
 
     <div class="nav">
         <div class="nav-btn active" onclick="switchTab('game', this)"><svg viewBox="0 0 24 24"><path d="M6 12h4m-2-2v4m5-2h.01m2.99 0h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Игра</span></div>
-        <div class="nav-btn" onclick="switchTab('shop', this)"><svg viewBox="0 0 24 24"><path d="M3 9h18v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm3 0V7a6 6 0 1112 0v2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Магазин</span></div>
         <div class="nav-btn" onclick="switchTab('profile', this)"><svg viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Профиль</span></div>
     </div>
 
-    <!-- Модалка выбора NFT -->
     <div id="nft-bet-modal" class="modal">
         <div class="modal-content" style="max-height:80%; overflow-y:auto;">
-            <h3>Ставка NFT</h3>
+            <h3>Выбери NFT для ставки</h3>
             <div id="nft-bet-list" class="inv-grid"></div>
             <button onclick="closeModal('nft-bet-modal')" style="margin-top:15px; color:gray; background:none; border:none;">Закрыть</button>
         </div>
     </div>
 
-    <!-- Модалка Продажи -->
     <div id="sell-modal" class="modal">
         <div class="modal-content">
             <img id="sell-img" src="" style="width:100px; margin-bottom:15px; border-radius:10px;">
@@ -139,7 +130,6 @@
         </div>
     </div>
 
-    <!-- Модалка Покупки -->
     <div id="buy-modal" class="modal">
         <div class="modal-content">
             <h2 style="margin-bottom:20px;">Купить звезды</h2>
@@ -200,10 +190,7 @@
             document.getElementById('sell-img').src = img;
             document.getElementById('sell-name').innerText = name;
             document.getElementById('sell-price').innerText = price.toLocaleString();
-            document.getElementById('confirm-sell-btn').onclick = () => {
-                socket.emit('exchangeNFT', id);
-                closeModal('sell-modal');
-            };
+            document.getElementById('confirm-sell-btn').onclick = () => { socket.emit('exchangeNFT', id); closeModal('sell-modal'); };
             openModal('sell-modal');
         }
 
@@ -241,25 +228,25 @@
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function pay(amt) { closeModal('buy-modal'); socket.emit('createInvoice', amt); }
 
-        socket.on('invoiceLink', (d) => { tg.openInvoice(d.url, (s) => { if(s==='paid') tg.showAlert("Успешно!"); }); });
-
         socket.on('sync', (data) => {
             document.getElementById('online-count').innerText = data.onlineCount || 0;
             document.getElementById('bank-val').innerText = (data.bank || 0).toLocaleString() + " ⭐";
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
+                // СОЗДАНИЕ БЕСКОНЕЧНОЙ ЛЕНТЫ ЧЕРЕЗ ДУБЛИРОВАНИЕ
                 if(data.players && data.players.length > 0) {
-                    let temp = []; while(temp.length < 50) data.players.forEach(p => temp.push(p));
-                    tape.innerHTML = temp.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
-                } else { tape.innerHTML = '<div class="segment" style="opacity:0.2">?</div>'.repeat(30); }
+                    let base = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
+                    // Дублируем контент, чтобы лента была длинной и зацикленной
+                    tape.innerHTML = base.repeat(10) + base.repeat(10); 
+                } else {
+                    let empty = '<div class="segment" style="opacity:0.2">?</div>';
+                    tape.innerHTML = empty.repeat(20) + empty.repeat(20);
+                }
                 
                 document.getElementById('players-list').innerHTML = (data.players || []).map(p => `
                     <div class="player-row">
                         <img src="${getAva(p.photo, p.name)}" style="width:36px; height:36px; border-radius:50%; margin-right:12px; border:1px solid rgba(255,255,255,0.1)">
-                        <div>
-                            <div style="font-weight:bold;">${p.name}</div>
-                            <div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div>
-                        </div>
+                        <div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
                         <div style="margin-left:auto; text-align:right; display:flex; align-items:center; gap:8px;">
                             ${p.nftImg ? `<img src="${p.nftImg}" style="width:24px; height:24px; border-radius:4px; border:1px solid gold;">` : ''}
                             <div style="font-weight:bold; color:gold;">${p.bet.toLocaleString()} ⭐</div>
@@ -284,7 +271,17 @@
             document.getElementById('win-a').innerText = data.winAmount.toLocaleString();
             document.getElementById('win-x').innerText = "x" + data.multiplier;
             m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 50);
-            setTimeout(() => { m.classList.remove('show'); setTimeout(() => { m.style.display = 'none'; isSpinningLocal = false; const t = document.getElementById('tape'); t.style.transition = 'none'; t.style.transform = 'translateX(0)'; t.classList.add('slow-drift'); }, 500); }, 5000);
+            setTimeout(() => { 
+                m.classList.remove('show'); 
+                setTimeout(() => { 
+                    m.style.display = 'none'; 
+                    isSpinningLocal = false; 
+                    const t = document.getElementById('tape'); 
+                    t.style.transition = 'none'; 
+                    t.style.transform = 'translateX(0)'; 
+                    t.classList.add('slow-drift'); 
+                }, 500); 
+            }, 5000);
         });
 
         socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
