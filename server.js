@@ -22,12 +22,19 @@ const userSchema = new mongoose.Schema({
     gamesPlayed: { type: Number, default: 0 },
     referralsCount: { type: Number, default: 0 },
     referralIncome: { type: Number, default: 0 },
-    referredBy: { type: String, default: null }
+    referredBy: { type: String, default: null },
+    inventory: [{
+        itemId: String,
+        name: String,
+        image: String,
+        rarity: String
+    }]
 });
 const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected")).catch(err => console.error(err));
 
+// Вебхук для звезд
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -86,19 +93,30 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
+    // ФИКС ВЫДАЧИ ЗВЕЗД И NFT В АДМИНКЕ
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin?.username === ADMIN_USERNAME) {
             const cleanUser = data.targetUsername.replace('@', '').trim();
-            const amount = parseInt(data.amount);
-            if(isNaN(amount)) return;
             
-            const target = await User.findOneAndUpdate(
-                { username: new RegExp(`^${cleanUser}$`, "i") }, 
-                { $inc: { balance: amount } }, 
-                { new: true }
-            );
-            if (target) io.to(target.userId).emit('updateUserData', target);
+            // Если в поле суммы написано "NFT", выдаем тестовый подарок
+            if (data.amount.toLowerCase() === "nft") {
+                const target = await User.findOneAndUpdate(
+                    { username: new RegExp(`^${cleanUser}$`, "i") }, 
+                    { $push: { inventory: { itemId: Date.now().toString(), name: "Lollipop NFT", image: "https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp", rarity: "Epic" } } }, 
+                    { new: true }
+                );
+                if (target) io.to(target.userId).emit('updateUserData', target);
+            } else {
+                const amount = parseInt(data.amount);
+                if(isNaN(amount)) return;
+                const target = await User.findOneAndUpdate(
+                    { username: new RegExp(`^${cleanUser}$`, "i") }, 
+                    { $inc: { balance: amount } }, 
+                    { new: true }
+                );
+                if (target) io.to(target.userId).emit('updateUserData', target);
+            }
         }
     });
 
@@ -144,6 +162,7 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
+        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
