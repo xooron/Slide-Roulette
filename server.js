@@ -11,9 +11,6 @@ const APP_URL = "https://slide-roulette.onrender.com";
 const app = express();
 app.use(express.json());
 
-// Проверка для Render (Health Check)
-app.get('/health', (req, res) => res.send('OK'));
-
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
@@ -28,7 +25,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// ЗАПУСК СЕРВЕРА
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server started on port ${PORT}`);
@@ -36,33 +32,41 @@ server.listen(PORT, '0.0.0.0', () => {
         mongoose.connect(MONGODB_URI).then(() => {
             console.log("DB Connected");
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
-        }).catch(err => console.error("DB Error:", err));
+        }).catch(err => console.error("DB Connection Error:", err));
     }
 });
 
-// ФИКС ОПЛАТЫ (PreCheckout)
+// ОБРАБОТКА ВЕБХУКА (ПЛАТЕЖИ)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
+    
+    // Ответ на проверку перед оплатой
     if (update.pre_checkout_query) {
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        }).catch(() => {});
+        }).catch(e => console.error(e));
     }
+
+    // Начисление звезд
     if (update.message && update.message.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
-        const amount = update.message.successful_payment.total_amount;
-        await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
-        const user = await User.findOne({ userId });
-        io.to(userId).emit('updateUserData', user);
-        io.to(userId).emit('notify', `Зачислено ${amount} ⭐!`);
+        const amount = parseInt(update.message.successful_payment.total_amount);
+
+        if (!isNaN(amount) && userId) {
+            await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
+            const user = await User.findOne({ userId });
+            if (user) {
+                io.to(userId).emit('updateUserData', user);
+                io.to(userId).emit('notify', `Зачислено ${amount} ⭐!`);
+            }
+        }
     }
     res.sendStatus(200);
 });
 
-// ЛОГИКА ИГРЫ
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 0, spinStartTime: 0 };
 let countdownInterval = null;
 
@@ -88,6 +92,8 @@ io.on('connection', (socket) => {
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning) return socket.emit('error', "Ставки закрыты!");
         const betAmount = parseInt(data.bet);
+        if (isNaN(betAmount) || betAmount <= 0) return socket.emit('error', "Введите сумму ставки!");
+
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < betAmount) return socket.emit('error', "Недостаточно звезд!");
 
@@ -102,12 +108,28 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
+    socket.on('adminGiveStars', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin && admin.username === ADMIN_USERNAME) {
+            const amount = parseInt(data.amount);
+            if (isNaN(amount)) return socket.emit('error', "Введите число!");
+            
+            const target = await User.findOneAndUpdate(
+                { username: data.targetUsername.replace('@','') }, 
+                { $inc: { balance: amount } }, 
+                { new: true }
+            );
+            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
+        }
+    });
+
     socket.on('createInvoice', async (amount) => {
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: `Пополнение ${amount} ⭐`,
+                description: `Stars for Slide Roulette`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
                 prices: [{ label: "Stars", amount: amount }]
@@ -117,17 +139,8 @@ io.on('connection', (socket) => {
         if (d.ok) socket.emit('invoiceLink', { url: d.result, amount });
     });
 
-    socket.on('adminGiveStars', async (data) => {
-        const admin = await User.findOne({ userId: socket.userId });
-        if (admin && admin.username === ADMIN_USERNAME) {
-            const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: parseInt(data.amount) } }, { new: true });
-            if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
-        }
-    });
-
     socket.on('disconnect', () => { 
-        gameState.onlineCount = io.engine.clientsCount; 
-        io.emit('sync', gameState); 
+        gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); 
     });
 });
 
