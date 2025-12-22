@@ -101,7 +101,7 @@ io.on('connection', (socket) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                title: `Пополнение ${amount} ⭐`,
+                title: `Купить ${amount} ⭐`,
                 description: `Звезды для Slide Roulette`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
@@ -140,11 +140,10 @@ async function runGame() {
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
-    // Генерация ленты (один раз для всех)
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
-            let count = Math.ceil((p.bet / currentBank) * 20);
+            let count = Math.ceil((p.bet / currentBank) * 25);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
         if (gameState.players.length === 0) break;
@@ -153,7 +152,9 @@ async function runGame() {
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
-    io.emit('sync', gameState); // Рассылка ленты всем одновременно
+    gameState.winnerIndex = 85;
+    
+    io.emit('startSpin', gameState); // Запускаем анимацию у всех одновременно
 
     const winAmount = Math.floor(currentBank * 0.95);
     setTimeout(async () => {
@@ -169,7 +170,7 @@ async function runGame() {
         io.emit('winnerUpdate', { winner, winAmount });
         io.to(winner.userId).emit('updateUserData', winDoc);
         setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; gameState.tapeLayout = []; io.emit('sync', gameState); }, 5000);
-    }, 11000); 
+    }, 11000); // Показ победителя только после конца анимации (10 сек + запас)
 }
 
 const PORT = process.env.PORT || 10000;
