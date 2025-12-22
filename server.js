@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const path = require('path');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -9,10 +10,9 @@ const ADMIN_USERNAME = 'maesexs';
 const APP_URL = "https://slide-roulette.onrender.com"; 
 
 const app = express();
-app.use(express.json());
-
+app.use(express.json()); // Для обработки платежей
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
 app.use(express.static(__dirname));
 
@@ -25,17 +25,15 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server started`);
-    if (MONGODB_URI) {
-        mongoose.connect(MONGODB_URI).then(() => {
-            console.log("DB Connected");
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
-        });
-    }
-});
+if (MONGODB_URI) {
+    mongoose.connect(MONGODB_URI).then(() => {
+        console.log("DB Connected");
+        // Установка вебхука для получения платежей
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${APP_URL}/webhook`);
+    });
+}
 
+// ОБРАБОТКА ПЛАТЕЖЕЙ (Фикс бесконечной загрузки)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -43,23 +41,24 @@ app.post('/webhook', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        }).catch(() => {});
+        });
     }
     if (update.message && update.message.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
         const amount = parseInt(update.message.successful_payment.total_amount);
-        if (!isNaN(amount)) {
-            await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
-            const user = await User.findOne({ userId });
-            io.to(userId).emit('updateUserData', user);
-            io.to(userId).emit('notify', `Зачислено ${amount} ⭐!`);
-        }
+        await User.updateOne({ userId: userId }, { $inc: { balance: amount } });
+        const user = await User.findOne({ userId });
+        io.to(userId).emit('updateUserData', user);
+        io.to(userId).emit('notify', `Зачислено ${amount} ⭐!`);
     }
     res.sendStatus(200);
 });
 
-let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 0, spinStartTime: 0 };
+let gameState = { 
+    players: [], bank: 0, isSpinning: false, timeLeft: 0, 
+    onlineCount: 0, tapeLayout: [], winnerIndex: 0, spinStartTime: 0 
+};
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
@@ -73,30 +72,32 @@ io.on('connection', (socket) => {
         if (!user) {
             user = new User({ userId: userData.id.toString(), username: userData.username, name: userData.name });
             await user.save();
-        } else {
-            user.username = userData.username; user.name = userData.name;
-            await user.save();
         }
         socket.userId = user.userId;
         socket.emit('updateUserData', user);
     });
 
     socket.on('makeBet', async (data) => {
-        if (gameState.isSpinning) return socket.emit('error', "Ставки закрыты!");
+        if (gameState.isSpinning) return socket.emit('error', "Ставки закрыты, идет игра!");
         const betAmount = parseInt(data.bet);
-        if (isNaN(betAmount) || betAmount <= 0) return socket.emit('error', "Введите число!");
+        if (isNaN(betAmount) || betAmount <= 0) return socket.emit('error', "Ставка должна быть больше 0!");
 
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < betAmount) return socket.emit('error', "Недостаточно звезд!");
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -betAmount } });
+        
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) { ex.bet += betAmount; } else {
-            gameState.players.push({ userId: socket.userId, name: data.name, photo: data.photo, bet: betAmount, color: `hsl(${Math.random()*360}, 70%, 60%)` });
+        if (ex) { ex.bet += betAmount; } 
+        else {
+            gameState.players.push({ 
+                userId: socket.userId, name: data.name, photo: data.photo, 
+                bet: betAmount, color: `hsl(${Math.random()*360}, 70%, 60%)` 
+            });
         }
         gameState.bank += betAmount;
-        gameState.players.sort((a,b) => b.bet - a.bet);
-        if (gameState.players.length >= 2 && !countdownInterval && !gameState.isSpinning) startCountdown();
+        gameState.players.sort((a, b) => b.bet - a.bet);
+        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
@@ -105,7 +106,7 @@ io.on('connection', (socket) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
             const amount = parseInt(data.amount);
-            if (isNaN(amount)) return;
+            if(isNaN(amount)) return;
             const target = await User.findOneAndUpdate({ username: data.targetUsername.replace('@','') }, { $inc: { balance: amount } }, { new: true });
             if (target) io.emit('updateUserDataTrigger', { id: target.userId, data: target });
         }
@@ -130,24 +131,26 @@ io.on('connection', (socket) => {
 });
 
 function startCountdown() {
-    if (countdownInterval) return;
     gameState.timeLeft = 10;
     countdownInterval = setInterval(() => {
         gameState.timeLeft--;
         io.emit('timer', gameState.timeLeft);
-        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runGame(); }
+        if (gameState.timeLeft <= 0) {
+            clearInterval(countdownInterval); countdownInterval = null; runGame();
+        }
     }, 1000);
 }
 
 function runGame() {
-    if (gameState.isSpinning || gameState.players.length < 2) return;
     gameState.isSpinning = true;
     gameState.spinStartTime = Date.now();
     const currentBank = gameState.bank;
     const winnerRandom = Math.random() * currentBank;
     let current = 0, winner = gameState.players[0];
-    for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
-    
+    for (let p of gameState.players) {
+        current += p.bet;
+        if (winnerRandom <= current) { winner = p; break; }
+    }
     let tape = [];
     for(let i=0; i<100; i++) {
         const randomP = gameState.players[Math.floor(Math.random() * gameState.players.length)];
@@ -157,11 +160,16 @@ function runGame() {
     gameState.tapeLayout = tape; gameState.winnerIndex = winIdx;
     io.emit('startSpin', gameState);
 
-    const winAmount = Math.floor(winner.bet + ((currentBank - winner.bet) * 0.95));
-
     setTimeout(async () => {
+        const winAmount = Math.floor(currentBank * 0.95);
         await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } });
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
-        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 5000);
+        setTimeout(() => {
+            gameState.players = []; gameState.bank = 0; gameState.isSpinning = false;
+            io.emit('sync', gameState);
+        }, 5000);
     }, 11000);
 }
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log(`Server started`));
