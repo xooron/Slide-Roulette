@@ -41,20 +41,33 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
+mongoose.connect(MONGODB_URI).then(async () => {
+    console.log("DB Connected");
+    // ОБНУЛЕНИЕ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (Баланс и Инвентарь)
+    await User.updateMany({}, { $set: { balance: 0, inventory: [] } });
+    console.log("All users balance and inventory reset.");
+});
 
-function getStakeIncome(user) {
-    if (!user.inventory) return 0;
-    let income = 0;
-    const now = new Date();
-    user.inventory.forEach(item => {
-        if (item.isStaked && item.stakeStart) {
-            const hours = (now - new Date(item.stakeStart)) / 3600000;
-            income += Math.floor(item.price * 0.001 * hours);
-        }
-    });
-    return income;
-}
+// Обработка платежа
+app.post('/webhook', async (req, res) => {
+    const update = req.body;
+    if (update.pre_checkout_query) {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
+        });
+    }
+    if (update.message?.successful_payment) {
+        const payload = update.message.successful_payment.invoice_payload;
+        const userId = payload.split('_')[1];
+        const amount = parseInt(update.message.successful_payment.total_amount);
+        await User.updateOne({ userId }, { $inc: { balance: amount } });
+        const user = await User.findOne({ userId });
+        if (user) io.to(userId).emit('updateUserData', user);
+    }
+    res.sendStatus(200);
+});
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
@@ -70,12 +83,10 @@ io.on('connection', (socket) => {
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 10 });
+            user = new User({ userId: sId, username: userData.username, name: userData.name });
             await user.save();
         }
-        const userObj = user.toObject();
-        userObj.stakingIncome = getStakeIncome(userObj);
-        socket.emit('updateUserData', userObj);
+        socket.emit('updateUserData', user);
     });
 
     socket.on('makeBet', async (data) => {
@@ -114,9 +125,25 @@ io.on('connection', (socket) => {
         io.emit('sync', gameState);
     }
 
+    socket.on('createInvoice', async (amount) => {
+        if(!socket.userId) return;
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Купить ${amount} ⭐`,
+                description: `Пополнение баланса Slide Roulette`,
+                payload: `dep_${socket.userId}`,
+                provider_token: "", currency: "XTR",
+                prices: [{ label: "Stars", amount: amount }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result });
+    });
+
     socket.on('exchangeNFT', async (itemId) => {
         const user = await User.findOne({ userId: socket.userId });
-        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
