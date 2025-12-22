@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
             user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (rId && rId !== sId) ? rId : null });
             await user.save();
             if (user.referredBy) {
-                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 2 } });
+                await User.updateOne({ userId: user.referredBy }, { $inc: { referralsCount: 1, balance: 5 } }); // Бонус 5 за друга
                 const r = await User.findOne({ userId: user.referredBy });
                 if (r) io.to(user.referredBy).emit('updateUserData', r);
             }
@@ -101,17 +101,20 @@ async function runGame() {
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
-    // ГЕНЕРАЦИЯ ДЛИННОЙ ЛЕНТЫ (100 ячеек)
+    // ГЕНЕРАЦИЯ ЛЕНТЫ С АВАТАРКАМИ ИГРОКОВ (100 ячеек)
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
-            let count = Math.ceil((p.bet / currentBank) * 15);
+            // Добавляем ячейку игрока пропорционально его ставке (минимум 1)
+            let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if (tape.length === 0) break; 
+        if (gameState.players.length === 0) break;
     }
+    // Перемешиваем и ограничиваем до 100
     tape = tape.sort(() => Math.random() - 0.5).slice(0, 100);
-    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name }; // Фиксируем победителя
+    // На 85-ю позицию ставим реального победителя
+    tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
     gameState.winnerIndex = 85;
@@ -135,6 +138,9 @@ async function runGame() {
         io.emit('winnerUpdate', { winner, winAmount, multiplier });
         io.to(winner.userId).emit('updateUserData', winDoc);
 
-        setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; gameState.tapeLayout = []; io.emit('sync', gameState); }, 5000);
+        setTimeout(() => { 
+            gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
+            gameState.tapeLayout = []; io.emit('sync', gameState); 
+        }, 5000);
     }, 11000); 
 }
