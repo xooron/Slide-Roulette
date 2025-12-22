@@ -2,8 +2,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
+// Нативные переменные из окружения
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
@@ -28,9 +28,10 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => {
-    console.log("DB Connected");
-});
+    console.log("DB Connected Successfully");
+}).catch(err => console.error("DB Connection Error:", err));
 
+// Вебхук для оплаты (используем встроенный fetch Node.js 22)
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
