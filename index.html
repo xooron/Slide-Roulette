@@ -7,73 +7,56 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { 
-            --tg-bg: #0a0a0c; 
-            --gold: linear-gradient(135deg, #ffcf33, #ff9500); 
-            --star: #ffd700; 
-            --hint: #a1a1a6; 
-            --glass: rgba(255, 255, 255, 0.08); 
-        }
+        :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; outline: none; }
+        body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        body { 
-            font-family: -apple-system, sans-serif; 
-            background: var(--tg-bg); 
-            color: white; 
-            margin: 0; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            overflow: hidden; /* Фикс для Мини Ап */
-        }
-
-        .page { display: none; flex-direction: column; height: 100%; width: 100%; padding-bottom: 75px; }
+        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
         /* Шапка */
-        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; font-size: 14px; }
-        .btn-plus { background: var(--gold); border: none; width: 28px; height: 28px; border-radius: 8px; color: #000; font-size: 18px; font-weight: 900; }
+        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
+        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; }
 
         /* Игровая зона */
-        .bank-val { font-size: 36px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 5px 0; }
-        .timer-txt { font-size: 10px; color: var(--hint); text-align: center; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
-
-        /* РУЛЕТКА (УМЕНЬШЕННЫЕ ЯЧЕЙКИ) */
-        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
-        .pointer { position: absolute; left: 50%; width: 3px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 10px var(--star); }
+        .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 5px 0; }
+        
+        /* РУЛЕТКА */
+        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
+        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
         .tape.slow-drift { animation: slowDrift 60s linear infinite; }
         @keyframes slowDrift { from { transform: translateX(0); } to { transform: translateX(-1200px); } }
         
-        .segment { flex-shrink: 0; width: 65px; height: 65px; margin: 0 4px; background: var(--glass); border-radius: 14px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
-        .segment img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.1); }
+        .segment { flex-shrink: 0; width: 70px; height: 70px; margin: 0 4px; background: var(--glass); border-radius: 14px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
+        .segment img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #222; }
 
         /* Ставки */
-        .bet-bar { display:flex; gap:10px; background:var(--glass); padding:8px; border-radius:16px; margin:10px 16px; border: 1px solid rgba(255,255,255,0.05); }
-        .bet-input { flex:1; background:none; border:none; color:white; font-weight:bold; padding-left:10px; font-size: 16px; }
-        .btn-bet { background: var(--gold); border:none; padding:10px 20px; border-radius:12px; font-weight:900; color: #000; font-size: 14px; }
+        .bet-bar { display:flex; gap:10px; background:var(--glass); padding:8px; border-radius:16px; margin:5px 16px; border: 1px solid rgba(255,255,255,0.05); }
+        .bet-input { flex:1; background:none; border:none; color:white; font-weight:bold; padding-left:10px; font-size: 17px; }
+        .btn-bet { background: var(--gold); border:none; padding:12px 22px; border-radius:12px; font-weight: 900; color: #000; }
 
-        /* Список игроков */
-        .player-row { display:flex; align-items:center; background:var(--glass); padding:10px; margin: 0 16px 8px 16px; border-radius:12px; border: 1px solid rgba(255,255,255,0.03); }
-        .p-ava-min { width:32px; height:32px; border-radius:8px; margin-right:12px; object-fit:cover; }
+        .player-row { display:flex; align-items:center; background:var(--glass); padding:10px; margin: 0 16px 8px 16px; border-radius:12px; }
 
         /* Навигация */
-        .nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 10px; gap: 4px; }
+        .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; }
         .nav-btn.active { color: var(--star); }
         .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
 
         /* Профиль */
-        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 16px; }
-        .profile-card { background: var(--glass); padding: 12px; border-radius: 14px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
-        .profile-card b { font-size: 20px; display: block; }
-        .profile-card span { color: var(--hint); font-size: 9px; text-transform: uppercase; }
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 16px; }
+        .profile-card { background: var(--glass); padding: 15px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+        .profile-card b { font-size: 22px; display: block; }
+        .profile-card span { color: var(--hint); font-size: 10px; text-transform: uppercase; }
 
-        .action-btn { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); color: white; width: calc(100% - 32px); margin: 4px 16px; padding: 14px; border-radius: 12px; font-weight: bold; font-size: 13px; text-align: center; }
+        .action-btn { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); color: white; width: calc(100% - 32px); margin: 5px 16px; padding: 16px; border-radius: 14px; font-weight: bold; font-size: 14px; text-align: center; }
+        .staking-box { background: var(--glass); border-radius: 24px; margin: 15px 16px; padding: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
 
-        /* Победитель */
-        .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 20px; border: 2px solid var(--star); display: none; align-items: center; padding: 14px; transform: translateY(200%); transition: 0.5s; z-index: 2000; }
+        /* Модалки */
+        #buy-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; z-index: 3000; }
+        .modal-win { position: fixed; bottom: 90px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 24px; border: 2px solid var(--star); display: none; align-items: center; padding: 16px; transform: translateY(250%); transition: 0.5s; z-index: 2000; }
         .modal-win.show { display: flex; transform: translateY(0); }
     </style>
 </head>
@@ -86,7 +69,7 @@
         </div>
         <div style="padding: 10px 0;">
             <div class="bank-val" id="bank-val">0 ⭐</div>
-            <div class="timer-txt" id="timer-label">ОЖИДАЕМ ИГРОКОВ...</div>
+            <div id="timer-label" style="text-align:center; font-size:10px; color:var(--hint); font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
         </div>
         <div class="roulette-wrap">
             <div class="pointer"></div>
@@ -102,42 +85,45 @@
     <div id="shop-page" class="page">
         <div style="padding:40px 20px; text-align:center;">
             <h2>Магазин</h2>
-            <div style="background:var(--glass); border-radius:24px; padding:30px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="background:var(--glass); border-radius:24px; padding:40px; border: 1px solid rgba(255,255,255,0.05);">
                 <img src="https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" style="width:100px; margin-bottom:20px;">
-                <p style="color:var(--hint);">Пепе скоро в инвентаре</p>
+                <p style="color:var(--hint);">Магазин щас пустой</p>
             </div>
         </div>
     </div>
 
     <div id="profile-page" class="page">
         <div style="padding: 20px 0; text-align:center;">
-            <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--star); margin-bottom:8px; object-fit:cover;">
-            <h2 id="p-name" style="margin: 0; font-size: 18px;">Загрузка...</h2>
-            <div id="p-username" style="color:var(--hint); font-size:12px;"></div>
+            <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--star); margin-bottom:10px; object-fit:cover;">
+            <h2 id="p-name" style="margin: 0;">Загрузка...</h2>
+            <div id="p-username" style="color:var(--hint); font-size:13px;"></div>
         </div>
         <div class="profile-grid">
             <div class="profile-card"><b id="p-bal">0</b><span>Баланс</span></div>
-            <div class="profile-card"><b id="p-games">0</b><span>Игры</span></div>
+            <div class="profile-card"><b id="p-games">0</b><span>Игр Сыграно</span></div>
             <div class="profile-card"><b id="p-refs">0</b><span>Рефералы</span></div>
             <div class="profile-card"><b id="p-ref-inc">0</b><span>Доход</span></div>
         </div>
-        <button class="action-btn" onclick="copyRef()">Поделиться ссылкой</button>
+        <button class="action-btn" onclick="copyRef()">Пригласить друга</button>
         <button class="action-btn" onclick="switchTab('inventory')">Инвентарь</button>
+        
+        <div class="staking-box">
+            <div style="color:var(--hint); font-size:12px; margin-bottom:10px;">Стейкинг 0%</div>
+            <div style="color:var(--hint); margin-bottom: 20px;">У вас пока нет гифтов</div>
+            <button class="action-btn" style="margin:0; width:100%; background:#222; color:#555;" disabled>Положить NFT в стейкинг</button>
+        </div>
 
-        <div id="admin-p" style="display:none; margin: 10px 16px; padding:15px; border:1px dashed gold; border-radius:15px;">
-            <input type="text" id="adm-user" placeholder="@username" style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:8px; border-radius:10px; margin-bottom:10px;">
-            <input type="number" id="adm-amt" placeholder="Сумма" style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:8px; border-radius:10px; margin-bottom:10px;">
-            <button onclick="adminGive()" style="width:100%; background:var(--gold); border:none; padding:10px; border-radius:10px; font-weight:bold; color:black;">ВЫДАТЬ ⭐</button>
+        <div id="admin-p" style="display:none; margin: 10px 16px; padding:15px; border:1px dashed gold; border-radius:20px;">
+            <input type="text" id="adm-user" placeholder="@username" style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:10px; border-radius:10px; margin-bottom:10px;">
+            <input type="number" id="adm-amt" placeholder="Сумма" style="width:100%; background:var(--glass); border:1px solid #333; color:white; padding:10px; border-radius:10px; margin-bottom:10px;">
+            <button onclick="adminGive()" style="width:100%; background:var(--gold); border:none; padding:12px; border-radius:10px; font-weight:bold; color:black;">ВЫДАТЬ ⭐</button>
         </div>
     </div>
 
     <div id="inventory-page" class="page">
         <div style="padding:40px 20px; text-align:center;">
             <h2>Инвентарь</h2>
-            <div style="background:var(--glass); border-radius:24px; padding:40px;">
-                <p style="color:var(--hint);">Пусто</p>
-                <button class="action-btn" onclick="switchTab('profile')">Назад</button>
-            </div>
+            <div style="background:var(--glass); border-radius:24px; padding:40px;"><p style="color:var(--hint);">Пусто</p><button class="action-btn" onclick="switchTab('profile')">Назад</button></div>
         </div>
     </div>
 
@@ -147,46 +133,40 @@
         <div class="nav-btn" onclick="switchTab('profile', this)"><svg viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Профиль</span></div>
     </div>
 
-    <div id="buy-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; z-index:3000;">
-        <h2>Пополнить звезды</h2>
+    <div id="buy-modal">
+        <h2>Купить звезды</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
-            <button class="btn-plus" style="width:100%; height:45px; font-size:14px;" onclick="pay(25)">25 ⭐</button>
-            <button class="btn-plus" style="width:100%; height:45px; font-size:14px;" onclick="pay(100)">100 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:45px; font-size:14px;" onclick="pay(50)">50 ⭐</button>
+            <button class="btn-plus" style="width:100%; height:45px; font-size:14px;" onclick="pay(250)">250 ⭐</button>
         </div>
         <div onclick="closeModal('buy-modal')" style="margin-top:20px; color:gray;">Отмена</div>
     </div>
 
     <div id="win-modal" class="modal-win">
-        <img id="win-ava" src="" style="width:40px; height:40px; border-radius:50%; margin-right:12px; border:2px solid gold; object-fit: cover;">
-        <div style="flex:1"><div id="win-n" style="font-weight:bold; font-size: 14px;"></div><div style="color:var(--star); font-weight:900;"><span id="win-a">0</span> ⭐</div></div>
+        <img id="win-ava" src="" style="width:50px; height:50px; border-radius:50%; margin-right:15px; border:2px solid gold; object-fit: cover;">
+        <div style="flex:1"><div id="win-n" style="font-weight:bold;"></div><div style="color:var(--star); font-weight:900;"><span id="win-a">0</span> ⭐</div></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
-        let me = {}; let isSpinningLocal = false;
 
         function getAva(url, name) {
             if (url && url.length > 5) return url;
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'P')}&background=random&color=fff&size=100`;
         }
 
-        socket.emit('auth', { 
-            id: tg.initDataUnsafe.user?.id, 
-            username: tg.initDataUnsafe.user?.username, 
-            name: tg.initDataUnsafe.user?.first_name || 'Игрок',
-            start_param: tg.initDataUnsafe.start_param 
-        });
+        socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name || 'Player', photo: tg.initDataUnsafe.user?.photo_url || "", start_param: tg.initDataUnsafe.start_param });
         
         socket.on('updateUserData', (data) => { me = data; updateUI(); });
 
         function updateUI() {
-            document.getElementById('bal-game').innerText = (me.balance || 0).toLocaleString();
-            document.getElementById('p-bal').innerText = (me.balance || 0).toLocaleString();
+            const b = (me.balance || 0).toLocaleString();
+            document.getElementById('bal-game').innerText = b;
+            document.getElementById('p-bal').innerText = b;
             document.getElementById('p-games').innerText = me.gamesPlayed || 0;
             document.getElementById('p-refs').innerText = me.referralsCount || 0;
             document.getElementById('p-ref-inc').innerText = (me.referralIncome || 0).toLocaleString();
             document.getElementById('p-name').innerText = me.name;
-            document.getElementById('p-username').innerText = me.username ? '@' + me.username : '';
             document.getElementById('p-ava').src = getAva(tg.initDataUnsafe.user?.photo_url, me.name);
             if(me.username === 'maesexs') document.getElementById('admin-p').style.display = 'block';
         }
@@ -194,54 +174,50 @@
         function switchTab(t, el) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
-            if (el) {
-                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-                el.classList.add('active');
-            }
+            if (el) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); el.classList.add('active'); }
         }
 
         function makeBet() {
             if(isSpinningLocal) return;
-            const val = parseInt(document.getElementById('bet-input').value);
-            if(val > me.balance || isNaN(val) || val < 1) return tg.showAlert("Мало звезд!");
-            socket.emit('makeBet', { name: me.name, photo: tg.initDataUnsafe.user?.photo_url || "", bet: val });
+            const v = parseInt(document.getElementById('bet-input').value);
+            if(v > me.balance || isNaN(v) || v < 1) return tg.showAlert("Мало звезд!");
+            socket.emit('makeBet', { name: me.name, photo: tg.initDataUnsafe.user?.photo_url || "", bet: v });
         }
 
         function copyRef() {
-            const b = "slideroulettebot"; // ЗАМЕНИ НА СВОЙ
-            const l = `https://t.me/${b}?start=${tg.initDataUnsafe.user?.id}`;
-            navigator.clipboard.writeText(l); tg.showAlert("Ссылка скопирована!");
+            const bot = "slideroulettebot"; // ЗАМЕНИТЬ
+            const link = `https://t.me/${bot}?start=${tg.initDataUnsafe.user?.id}`;
+            navigator.clipboard.writeText(link); tg.showAlert("Ссылка скопирована!");
         }
 
         function pay(amt) { closeModal('buy-modal'); socket.emit('createInvoice', amt); }
-        socket.on('invoiceLink', (d) => { tg.openInvoice(d.url, (s) => { if(s==='paid') tg.showAlert("Оплата принята!"); }); });
+        socket.on('invoiceLink', (d) => { tg.openInvoice(d.url, (s) => { if(s==='paid') tg.showAlert("Успешно!"); }); });
 
         function adminGive() { socket.emit('adminGiveStars', { targetUsername: document.getElementById('adm-user').value, amount: document.getElementById('adm-amt').value }); }
 
         socket.on('sync', (data) => {
             document.getElementById('online-count').innerText = data.onlineCount;
             document.getElementById('bank-val').innerText = data.bank.toLocaleString() + " ⭐";
-            if(data.isSpinning && !isSpinningLocal) runSpinAnimation(data);
             if(!data.isSpinning) {
                 renderEmptyTape();
                 document.getElementById('players-list').innerHTML = data.players.map(p => {
                     const ch = ((p.bet / (data.bank || 1)) * 100).toFixed(1);
-                    return `<div class="player-row"><img src="${getAva(p.photo, p.name)}" class="p-ava-min"><b>${p.name}</b><div style="margin-left:auto; text-align:right;"><b>${p.bet} ⭐</b><br><small style="color:gray; font-size:10px;">${ch}%</small></div></div>`;
+                    return `<div class="player-row"><img src="${getAva(p.photo, p.name)}" class="p-ava-min" style="width:32px;height:32px;border-radius:50%;margin-right:10px;"><b>${p.name}</b><div style="margin-left:auto;text-align:right;"><b>${p.bet} ⭐</b><br><small style="color:gray;font-size:10px;">${ch}%</small></div></div>`;
                 }).join('');
             }
         });
 
-        function runSpinAnimation(data) {
+        socket.on('startSpin', (data) => {
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift');
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment" style="border-bottom:3px solid ${c.color}"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
             
-            const segmentWidth = 73; // 65px + 8px margin
-            const offset = (data.winnerIndex * segmentWidth) - (window.innerWidth / 2) + 36;
-            tape.style.transition = 'transform 10s cubic-bezier(0.1, 0, 0.05, 1)';
+            const segmentWidth = 78; // 70px + 8px margin
+            const offset = (data.winnerIndex * segmentWidth) - (window.innerWidth / 2) + 39;
+            tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)';
             tape.style.transform = `translateX(-${offset}px)`;
-        }
+        });
 
         socket.on('winnerUpdate', (data) => {
             document.getElementById('win-ava').src = getAva(data.winner.photo, data.winner.name);
