@@ -7,6 +7,15 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
+// База цен и данных подарков
+const GIFT_MARKET = {
+    "Lollipop": { price: 150, img: "https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" },
+    "Rose": { price: 100, img: "https://static.tgstat.ru/stickers/v2/a/123.webp" }, // Замените на реальные URL
+    "Diamond": { price: 500, img: "https://static.tgstat.ru/stickers/v2/a/456.webp" },
+    "Cake": { price: 200, img: "https://static.tgstat.ru/stickers/v2/a/789.webp" },
+    "Heart": { price: 300, img: "https://static.tgstat.ru/stickers/v2/a/101.webp" }
+};
+
 const app = express();
 app.use(express.json());
 const server = http.createServer(app);
@@ -27,33 +36,14 @@ const userSchema = new mongoose.Schema({
         itemId: String,
         name: String,
         image: String,
-        rarity: String
+        price: Number,
+        isStaked: { type: Boolean, default: false },
+        stakeStart: Date
     }]
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected")).catch(err => console.error(err));
-
-// Вебхук для звезд
-app.post('/webhook', async (req, res) => {
-    const update = req.body;
-    if (update.pre_checkout_query) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-        });
-    }
-    if (update.message?.successful_payment) {
-        const payload = update.message.successful_payment.invoice_payload;
-        const userId = payload.split('_')[1];
-        const amount = parseInt(update.message.successful_payment.total_amount);
-        await User.updateOne({ userId }, { $inc: { balance: amount } });
-        const user = await User.findOne({ userId });
-        io.to(userId).emit('updateUserData', user);
-    }
-    res.sendStatus(200);
-});
+mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
@@ -68,7 +58,7 @@ io.on('connection', (socket) => {
         socket.join(sId);
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: (userData.start_param && userData.start_param !== sId) ? userData.start_param : null, balance: 10 });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: userData.start_param, balance: 10 });
             await user.save();
         }
         socket.userId = sId;
@@ -93,47 +83,56 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    // ФИКС ВЫДАЧИ ЗВЕЗД И NFT В АДМИНКЕ
+    // Админ-панель: выдача Звезд или конкретного Подарка
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
-        if (admin?.username === ADMIN_USERNAME) {
-            const cleanUser = data.targetUsername.replace('@', '').trim();
-            
-            // Если в поле суммы написано "NFT", выдаем тестовый подарок
-            if (data.amount.toLowerCase() === "nft") {
-                const target = await User.findOneAndUpdate(
-                    { username: new RegExp(`^${cleanUser}$`, "i") }, 
-                    { $push: { inventory: { itemId: Date.now().toString(), name: "Lollipop NFT", image: "https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp", rarity: "Epic" } } }, 
-                    { new: true }
-                );
-                if (target) io.to(target.userId).emit('updateUserData', target);
-            } else {
-                const amount = parseInt(data.amount);
-                if(isNaN(amount)) return;
-                const target = await User.findOneAndUpdate(
-                    { username: new RegExp(`^${cleanUser}$`, "i") }, 
-                    { $inc: { balance: amount } }, 
-                    { new: true }
-                );
-                if (target) io.to(target.userId).emit('updateUserData', target);
-            }
+        if (admin?.username !== ADMIN_USERNAME) return;
+        const cleanUser = data.targetUsername.replace('@', '').trim();
+        const gift = GIFT_MARKET[data.amount]; // Если в поле "amount" введено название подарка
+
+        if (gift) {
+            const target = await User.findOneAndUpdate(
+                { username: new RegExp(`^${cleanUser}$`, "i") },
+                { $push: { inventory: { itemId: Date.now().toString(), name: data.amount, image: gift.img, price: gift.price } } },
+                { new: true }
+            );
+            if (target) io.to(target.userId).emit('updateUserData', target);
+        } else {
+            const amt = parseInt(data.amount);
+            const target = await User.findOneAndUpdate(
+                { username: new RegExp(`^${cleanUser}$`, "i") },
+                { $inc: { balance: amt } },
+                { new: true }
+            );
+            if (target) io.to(target.userId).emit('updateUserData', target);
         }
     });
 
-    socket.on('createInvoice', async (amount) => {
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Купить ${amount} ⭐`,
-                description: `Звезды для Slide Roulette`,
-                payload: `dep_${socket.userId}`,
-                provider_token: "", currency: "XTR",
-                prices: [{ label: "Stars", amount: amount }]
-            })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result });
+    // Обмен NFT на Звезды
+    socket.on('exchangeNFT', async (itemId) => {
+        const user = await User.findOne({ userId: socket.userId });
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item || item.isStaked) return;
+
+        await User.updateOne(
+            { userId: socket.userId },
+            { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } }
+        );
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    // Стейкинг
+    socket.on('toggleStake', async (itemId) => {
+        const user = await User.findOne({ userId: socket.userId });
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item) return;
+
+        const newState = !item.isStaked;
+        await User.updateOne(
+            { userId: socket.userId, "inventory.itemId": itemId },
+            { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } }
+        );
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
@@ -162,7 +161,6 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
@@ -172,7 +170,7 @@ async function runGame() {
     io.emit('startSpin', gameState);
 
     const winAmount = Math.floor(currentBank * 0.95);
-    const multiplier = (winAmount / winner.bet).toFixed(2);
+    const multiplier = (winAmount / (winner.bet || 1)).toFixed(2);
 
     setTimeout(async () => {
         const winDoc = await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } }, { new: true });
@@ -182,5 +180,4 @@ async function runGame() {
     }, 11000);
 }
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`Server started`));
+server.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log(`Server started`));
