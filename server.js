@@ -1,4 +1,4 @@
-const express = require('express');
+Мconst express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
@@ -185,11 +185,11 @@ function runGame() {
         const allUsers = await User.find({ userId: { $in: playerIds } });
         allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
-        // ОЖИДАЕМ 5 СЕКУНД (пока на клиенте висит модальное окно) прежде чем разрешить ставки
+        // Блокируем новые ставки еще на 5 секунд, пока висит окно победителя
         setTimeout(() => {
             gameState.players = []; 
             gameState.bank = 0; 
-            gameState.isSpinning = false; // РАЗРЕШАЕМ СТАВКИ ТУТ
+            gameState.isSpinning = false; 
             gameState.spinStartTime = 0;
             gameState.tapeLayout = [];
             io.emit('sync', gameState);
