@@ -34,7 +34,7 @@ let gameState = {
     timeLeft: 0, 
     onlineCount: 0,
     tapeLayout: [],
-    currentWinner: null
+    winnerIndex: 0
 };
 
 let countdownInterval = null;
@@ -52,32 +52,21 @@ io.on('connection', (socket) => {
         }
         socket.userId = user.userId;
         socket.emit('updateUserData', user);
-        
-        if (gameState.isSpinning) {
-            socket.emit('startSpin', { winner: gameState.currentWinner, tapeLayout: gameState.tapeLayout });
-        }
     });
 
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning) return;
-        
         const betAmount = parseInt(data.bet);
-        // ЗАЩИТА ОТ МИНУСОВЫХ И НЕКОРРЕКТНЫХ СТАВОК
-        if (isNaN(betAmount) || betAmount <= 0) {
-            return socket.emit('error', "Ставка должна быть больше 0!");
-        }
+        if (isNaN(betAmount) || betAmount <= 0) return socket.emit('error', "Ставка должна быть больше 0!");
 
         const user = await User.findOne({ userId: socket.userId });
-        if (!user || user.balance < betAmount) {
-            return socket.emit('error', "Недостаточно звезд на балансе!");
-        }
+        if (!user || user.balance < betAmount) return socket.emit('error', "Недостаточно звезд!");
 
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -betAmount } });
         
         let ex = gameState.players.find(p => p.userId === socket.userId);
-        if (ex) {
-            ex.bet += betAmount;
-        } else {
+        if (ex) { ex.bet += betAmount; } 
+        else {
             gameState.players.push({ 
                 userId: socket.userId, 
                 name: data.name, 
@@ -91,20 +80,16 @@ io.on('connection', (socket) => {
         gameState.players.sort((a, b) => b.bet - a.bet);
 
         if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
-        
         io.emit('sync', gameState);
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
     socket.on('withdrawRequest', async (amount) => {
-        if (!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         if (!user || amount < 1000 || user.balance < amount) return socket.emit('error', "Минимум 1000 ⭐");
-
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: -amount } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-        console.log(`💰 ВЫВОД: @${user.username} - ${amount} ⭐`);
-        socket.emit('notify', "Заявка отправлена! Ожидайте выплату.");
+        socket.emit('notify', "Заявка отправлена!");
     });
 
     socket.on('adminGiveStars', async (data) => {
@@ -123,7 +108,7 @@ io.on('connection', (socket) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: `Пополнение ${amount} ⭐`,
-                    description: `Пополнение баланса Slide Roulette`,
+                    description: `Slide Roulette`,
                     payload: `dep_${socket.userId}`,
                     currency: "XTR",
                     prices: [{ label: "Stars", amount: amount }]
@@ -169,46 +154,44 @@ function runGame() {
         current += p.bet;
         if (winnerRandom <= current) { winner = p; break; }
     }
-    gameState.currentWinner = winner;
 
-    let pool = [];
-    gameState.players.forEach(p => {
-        let count = Math.max(Math.round((p.bet / currentBank) * 60), 1);
-        for(let i=0; i<count; i++) pool.push({ photo: p.photo, color: p.color });
-    });
-    for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
+    // Генерация ленты (всегда 100 элементов для стабильности)
+    let tape = [];
+    const players = gameState.players;
+    for(let i=0; i<100; i++) {
+        const randomP = players[Math.floor(Math.random() * players.length)];
+        tape.push({ photo: randomP.photo, color: randomP.color });
     }
-    let finalTape = [];
-    while(finalTape.length < 300) finalTape = finalTape.concat(pool);
-    gameState.tapeLayout = finalTape;
+    
+    // Принудительно ставим победителя на позицию 80 (зона остановки)
+    const winIdx = 80;
+    tape[winIdx] = { photo: winner.photo, color: winner.color };
+    
+    gameState.tapeLayout = tape;
+    gameState.winnerIndex = winIdx;
 
-    io.emit('startSpin', { winner, bank: currentBank, tapeLayout: gameState.tapeLayout });
+    io.emit('startSpin', { 
+        winner, 
+        bank: currentBank, 
+        tapeLayout: tape, 
+        winnerIndex: winIdx 
+    });
 
     setTimeout(async () => {
-        const profit = currentBank - winner.bet;
-        const winAmount = Math.floor(winner.bet + (profit * 0.95)); // Своя ставка без комиссии
-        
+        const winAmount = Math.floor(currentBank * 0.95);
         const playerIds = gameState.players.map(p => p.userId);
         await User.updateMany({ userId: { $in: playerIds } }, { $inc: { gamesPlayed: 1 } });
-        
-        if (!winner.isBot) {
-            await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
-        }
+        await User.updateOne({ userId: winner.userId }, { $inc: { balance: winAmount } });
 
         io.emit('winnerUpdate', { winner, winAmount, winnerBet: winner.bet });
 
-        // Мгновенное обновление балансов
-        for (let id of playerIds) {
-            const u = await User.findOne({ userId: id });
-            if (u) io.emit('updateUserDataTrigger', { id, data: u });
-        }
+        // Обновление балансов у всех
+        const allUsers = await User.find({ userId: { $in: playerIds } });
+        allUsers.forEach(u => io.emit('updateUserDataTrigger', { id: u.userId, data: u }));
 
         gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; 
-        gameState.tapeLayout = []; gameState.currentWinner = null;
         io.emit('sync', gameState);
-    }, 14500);
+    }, 11000); // 10с анимация + 1с запас
 }
 
 const PORT = process.env.PORT || 10000;
