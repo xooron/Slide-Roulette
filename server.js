@@ -7,7 +7,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 // ВПИШИТЕ СЮДА ВАШ URL ОТ RENDER (например: https://my-app.onrender.com)
-const APP_URL = "https://ВАШ-ПРОЕКТ.onrender.com"; 
+const APP_URL = "https://slide-roulette.onrender.com"; 
 
 const app = express();
 app.use(express.json()); // Обязательно для приема чеков от Telegram
@@ -207,3 +207,4 @@ function runGame() {
 }
 
 server.listen(process.env.PORT || 10000);
+
