@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
             user = new User({ 
                 userId: sId, username: userData.username, name: userData.name, 
                 referredBy: (rId && rId !== sId) ? rId : null,
-                balance: 10 // Стартовый бонус
+                balance: 10
             });
             await user.save();
             if (user.referredBy) {
@@ -78,7 +78,7 @@ io.on('connection', (socket) => {
         let ex = gameState.players.find(p => p.userId === socket.userId);
         if (ex) { 
             ex.bet += amt; 
-            ex.photo = data.photo; 
+            ex.photo = data.photo; // Обновляем фото игрока при каждой ставке
         } else {
             gameState.players.push({ 
                 userId: socket.userId, name: data.name, photo: data.photo, 
@@ -114,7 +114,7 @@ async function runGame() {
     let tape = [];
     while (tape.length < 100) {
         gameState.players.forEach(p => {
-            let count = Math.ceil((p.bet / currentBank) * 25);
+            let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
         if (gameState.players.length === 0) break;
