@@ -7,7 +7,6 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
-// База цен и данных подарков
 const GIFT_MARKET = {
     "Lollipop": { price: 150, img: "https://stickers.fullyst.com/967291c8-a210-5ea4-9cdd-8b656eedba6a/full/AgADYmAAAkD2uUs.webp" },
     "Rose": { price: 100, img: "https://static.tgstat.ru/stickers/v2/a/123.webp" },
@@ -58,9 +57,11 @@ app.post('/webhook', async (req, res) => {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
         const amount = parseInt(update.message.successful_payment.total_amount);
-        await User.updateOne({ userId }, { $inc: { balance: amount } });
-        const user = await User.findOne({ userId });
-        io.to(userId).emit('updateUserData', user);
+        if(!isNaN(amount)) {
+            await User.updateOne({ userId }, { $inc: { balance: amount } });
+            const user = await User.findOne({ userId });
+            if(user) io.to(userId).emit('updateUserData', user);
+        }
     }
     res.sendStatus(200);
 });
@@ -76,17 +77,17 @@ io.on('connection', (socket) => {
         if (!userData?.id) return;
         const sId = userData.id.toString();
         socket.join(sId);
+        socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
             user = new User({ userId: sId, username: userData.username, name: userData.name, referredBy: userData.start_param, balance: 10 });
             await user.save();
         }
-        socket.userId = sId;
         socket.emit('updateUserData', user);
     });
 
     socket.on('makeBet', async (data) => {
-        if (gameState.isSpinning) return;
+        if (gameState.isSpinning || !socket.userId) return;
         const amt = parseInt(data.bet);
         if (isNaN(amt) || amt < 1) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -103,13 +104,13 @@ io.on('connection', (socket) => {
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
-    // ФИКС ОШИБКИ NaN В АДМИНКЕ
     socket.on('adminGiveStars', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin?.username !== ADMIN_USERNAME) return;
-        const cleanUser = data.targetUsername.replace('@', '').trim();
-        const gift = GIFT_MARKET[data.amount];
+        const cleanUser = data.targetUsername ? data.targetUsername.replace('@', '').trim() : "";
+        if(!cleanUser) return;
 
+        const gift = GIFT_MARKET[data.amount];
         if (gift) {
             const target = await User.findOneAndUpdate(
                 { username: new RegExp(`^${cleanUser}$`, "i") },
@@ -119,19 +120,21 @@ io.on('connection', (socket) => {
             if (target) io.to(target.userId).emit('updateUserData', target);
         } else {
             const amt = parseInt(data.amount);
-            if (isNaN(amt)) return; // Если введено не число и не название подарка - игнорируем
-            
-            const target = await User.findOneAndUpdate(
-                { username: new RegExp(`^${cleanUser}$`, "i") },
-                { $inc: { balance: amt } },
-                { new: true }
-            );
-            if (target) io.to(target.userId).emit('updateUserData', target);
+            if (!isNaN(amt)) {
+                const target = await User.findOneAndUpdate(
+                    { username: new RegExp(`^${cleanUser}$`, "i") },
+                    { $inc: { balance: amt } },
+                    { new: true }
+                );
+                if (target) io.to(target.userId).emit('updateUserData', target);
+            }
         }
     });
 
     socket.on('exchangeNFT', async (itemId) => {
+        if(!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
+        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
 
@@ -143,7 +146,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('toggleStake', async (itemId) => {
+        if(!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
+        if(!user) return;
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item) return;
 
@@ -156,6 +161,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('createInvoice', async (amount) => {
+        if(!socket.userId) return;
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -197,7 +203,6 @@ async function runGame() {
             let count = Math.ceil((p.bet / currentBank) * 20);
             for(let i=0; i<count; i++) if(tape.length < 110) tape.push({ photo: p.photo, color: p.color, name: p.name });
         });
-        if (gameState.players.length === 0) break;
     }
     tape = tape.sort(() => Math.random() - 0.5);
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
@@ -212,10 +217,9 @@ async function runGame() {
     setTimeout(async () => {
         const winDoc = await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount, gamesPlayed: 1 } }, { new: true });
         io.emit('winnerUpdate', { winner, winAmount, multiplier });
-        io.to(winner.userId).emit('updateUserData', winDoc);
+        if(winDoc) io.to(winner.userId).emit('updateUserData', winDoc);
         setTimeout(() => { gameState.players = []; gameState.bank = 0; gameState.isSpinning = false; io.emit('sync', gameState); }, 6000);
     }, 11000);
 }
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`Server started`));
+server.listen(process.env.PORT || 10000, '0.0.0.0', () => console.log(`Server started`));
