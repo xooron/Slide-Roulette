@@ -43,13 +43,19 @@
         .chance-tag { font-size: 10px; background: rgba(255,215,0,0.15); color: var(--star); padding: 4px 8px; border-radius: 8px; margin-left: auto; font-weight: 900; }
 
         .nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(10,10,12,0.95); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; }
+        .nav-btn span:first-child { font-size: 20px; }
         .nav-btn.active { color: var(--star); }
 
         .modal-win { position: fixed; bottom: 85px; left: 16px; right: 16px; background: rgba(20, 20, 25, 0.98); backdrop-filter: blur(20px); border-radius: 24px; border: 1px solid rgba(255, 215, 0, 0.4); display: none; align-items: center; padding: 16px; z-index: 2000; transform: translateY(250%); transition: transform 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.2); box-shadow: 0 15px 50px rgba(0,0,0,0.9); }
         .modal-win.show { display: flex; transform: translateY(0); }
         .modal-basic { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .input-dark { width: 100%; background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; color: white; text-align: center; font-size: 20px; margin: 15px 0; }
+
+        .shop-container { padding: 20px 16px; }
+        .shop-category { background: var(--glass); border-radius: 20px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .shop-category h3 { margin: 0 0 10px 0; color: var(--star); font-size: 18px; }
+        .empty-text { color: var(--hint); font-size: 14px; font-style: italic; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -67,7 +73,7 @@
             <div class="bank-val" id="bank-val">0 ⭐</div>
             <div id="timer-label" style="font-size:11px; color:var(--hint); font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
         </div>
-        <div class="roulette-wrap">
+        <div class="rou roulette-wrap">
             <div class="pointer"></div>
             <div id="tape" class="tape slow-drift"></div>
         </div>
@@ -78,6 +84,16 @@
             </div>
         </div>
         <div id="players-list" class="players-list"></div>
+    </div>
+
+    <div id="shop-page" class="page">
+        <div class="shop-container">
+            <h2 style="margin-bottom: 20px;">Магазин</h2>
+            <div class="shop-category">
+                <h3>🎁 Гифты</h3>
+                <div class="empty-text">Пусто</div>
+            </div>
+        </div>
     </div>
 
     <div id="profile-page" class="page">
@@ -99,8 +115,9 @@
     </div>
 
     <div class="nav">
-        <div class="nav-btn active" onclick="switchTab('game', this)"><span>🎮</span><span>Игра</span></div>
-        <div class="nav-btn" onclick="switchTab('profile', this)"><span>👤</span><span>Профиль</span></div>
+        <div class="nav-btn active" onclick="switchTab('game', this)"><span>🕹️</span><span>Игра</span></div>
+        <div class="nav-btn" onclick="switchTab('shop', this)"><span>🛍️</span><span>Магазин</span></div>
+        <div class="nav-btn" onclick="switchTab('profile', this)"><span>💎</span><span>Профиль</span></div>
     </div>
 
     <div id="win-modal" class="modal-win">
