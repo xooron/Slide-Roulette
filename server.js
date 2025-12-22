@@ -7,13 +7,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
-// База подарков с прямыми ссылками на анимации
+// Единственный подарок в системе
 const GIFT_MARKET = {
-    "Lollipop": { price: 200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765452.160.webm" },
-    "Rose": { price: 150, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765455.160.webm" },
-    "Diamond": { price: 3000, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765448.160.webm" },
-    "Cake": { price: 800, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765461.160.webm" },
-    "Heart": { price: 1200, img: "https://stickerswiki.ams3.cdn.digitaloceanspaces.com/Gifts/4765445.160.webm" }
+    "PlushPepe": { 
+        price: 650000, 
+        img: "https://cache.tonapi.io/imgproxy/P0Z2Vj7bG1tucX0LSvES-_W7cGHKtb3KUKxFtaoN3wM/rs:fill:500:500:1/g:no/aHR0cHM6Ly9uZnQuZnJhZ21lbnQuY29tL2dpZnQvcGx1c2hwZXBlLTE3OC53ZWJw.webp" 
+    }
 };
 
 const app = express();
@@ -45,6 +44,20 @@ const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
+// Функция расчета дохода стейкинга (0.1% в час)
+function getStakeIncome(user) {
+    if (!user.inventory) return 0;
+    let income = 0;
+    const now = new Date();
+    user.inventory.forEach(item => {
+        if (item.isStaked && item.stakeStart) {
+            const hours = (now - new Date(item.stakeStart)) / 3600000;
+            income += Math.floor(item.price * 0.001 * hours);
+        }
+    });
+    return income;
+}
+
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
 
@@ -62,7 +75,9 @@ io.on('connection', (socket) => {
             user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 10 });
             await user.save();
         }
-        socket.emit('updateUserData', user);
+        const userObj = user.toObject();
+        userObj.stakingIncome = getStakeIncome(userObj);
+        socket.emit('updateUserData', userObj);
     });
 
     socket.on('makeBet', async (data) => {
@@ -118,6 +133,30 @@ io.on('connection', (socket) => {
         if (!item || item.isStaked) return;
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    socket.on('toggleStake', async (itemId) => {
+        const user = await User.findOne({ userId: socket.userId });
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item) return;
+        const newState = !item.isStaked;
+        await User.updateOne({ userId: socket.userId, "inventory.itemId": itemId }, { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } });
+        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
+    });
+
+    socket.on('createInvoice', async (amount) => {
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Купить ${amount} ⭐`,
+                payload: `dep_${socket.userId}`,
+                provider_token: "", currency: "XTR",
+                prices: [{ label: "Stars", amount: amount }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result });
     });
 
     socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
