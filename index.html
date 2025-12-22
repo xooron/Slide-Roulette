@@ -177,7 +177,7 @@
         }
 
         function shareMyLink() {
-            const botUser = "ВАШ_БОТ_USERNAME"; // ЗАМЕНИ НА СВОЙ ЮЗЕРНЕЙМ БОТА
+            const botUser = "@slideroulettebot"; // ЗАМЕНИ НА СВОЙ ЮЗЕРНЕЙМ БОТА
             const link = `https://t.me/${botUser}?start=${tg.initDataUnsafe.user?.id}`;
             const text = "Залетай в Slide Roulette! ⭐ Получи бонус за регистрацию!";
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
@@ -267,3 +267,4 @@
     </script>
 </body>
 </html>
+
