@@ -12,7 +12,6 @@
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
-        #auth-screen { position: fixed; inset: 0; background: var(--tg-bg); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
@@ -20,22 +19,22 @@
         #ton-connect-btn { scale: 0.8; transform-origin: left; }
         
         .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; margin-left: auto; }
-        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; }
+        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; cursor: pointer;}
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
         .roulette-wrap { position: relative; width: 100%; height: 95px; background: rgba(255,255,255,0.02); margin: 15px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
-        .slow-drift { animation: driftAnim 20s linear infinite; width: max-content; }
+        .slow-drift { animation: driftAnim 25s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         
         .segment { flex-shrink: 0; width: 80px; height: 70px; margin: 0 4px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
-        .segment img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+        .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; cursor: pointer;}
         .nav-btn.active { color: var(--star); }
         .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
 
@@ -48,14 +47,9 @@
 </head>
 <body>
 
-    <div id="auth-screen">
-        <h1 style="background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 40px; margin-bottom: 30px;">ROULETTE PRO</h1>
-        <div id="ton-connect-btn"></div>
-    </div>
-
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div id="single-ton-btn"></div>
+            <div id="ton-connect-btn"></div>
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -94,7 +88,7 @@
             <h3 style="margin-top:0">Пополнение TON</h3>
             <input type="number" id="dep-amt" placeholder="Сумма TON" value="1">
             <button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ</button>
-            <button onclick="closeModal('buy-modal')" style="margin-top:20px; background:none; border:none; color:gray;">Отмена</button>
+            <button onclick="closeModal('buy-modal')" style="margin-top:20px; background:none; border:none; color:gray; cursor:pointer;">Отмена</button>
         </div>
     </div>
 
@@ -120,38 +114,26 @@
         // ВАЖНО: ЗАМЕНИ ЭТОТ АДРЕС НА СВОЙ
         const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
 
-        // Только ОДИН экземпляр TonConnect UI
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-btn'
-        });
-
-        // Перемещаем кнопку в заголовок после авторизации
-        tonConnectUI.onStatusChange(wallet => {
-            if (wallet) {
-                document.getElementById('auth-screen').style.display = 'none';
-                const headerBtn = document.getElementById('single-ton-btn');
-                if (headerBtn.innerHTML === "") {
-                    // Переставляем элемент кнопки из экрана входа в хедер
-                    const btn = document.getElementById('ton-connect-btn');
-                    headerBtn.appendChild(btn);
-                    btn.style.scale = "0.7";
-                    btn.style.margin = "0";
-                }
-                socket.emit('auth', { 
-                    id: tg.initDataUnsafe.user?.id, 
-                    username: tg.initDataUnsafe.user?.username,
-                    name: tg.initDataUnsafe.user?.first_name,
-                    photo: tg.initDataUnsafe.user?.photo_url,
-                    wallet: wallet.account.address
-                });
-            }
         });
 
         function getAva(url, name) { 
             if (url && url.length > 5) return url;
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'P')}&background=random&color=fff&size=128`; 
         }
+
+        tonConnectUI.onStatusChange(wallet => {
+            const addr = wallet ? wallet.account.address : null;
+            socket.emit('auth', { 
+                id: tg.initDataUnsafe.user?.id, 
+                username: tg.initDataUnsafe.user?.username,
+                name: tg.initDataUnsafe.user?.first_name,
+                photo: tg.initDataUnsafe.user?.photo_url,
+                wallet: addr
+            });
+        });
 
         socket.on('updateUserData', d => {
             document.getElementById('bal-game').innerText = d.balance.toFixed(2);
@@ -166,7 +148,7 @@
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
                     const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
-                    tape.innerHTML = items.repeat(15);
+                    tape.innerHTML = items.repeat(20);
                 } else {
                     tape.innerHTML = '<div class="segment" style="opacity:0.2">?</div>'.repeat(40);
                 }
@@ -213,7 +195,6 @@
             if(!tonConnectUI.account) return tg.showAlert("Подключите кошелек!");
 
             try {
-                // Переводим в нанотоны (умножаем на 10^9)
                 const nanoAmount = Math.floor(amt * 1000000000).toString();
                 const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
@@ -229,7 +210,7 @@
                     tg.showAlert("Успешно пополнено!");
                 }
             } catch (e) { 
-                tg.showAlert("Ошибка или отмена оплаты"); 
+                tg.showAlert("Ошибка оплаты. Проверьте баланс."); 
             }
         }
 
