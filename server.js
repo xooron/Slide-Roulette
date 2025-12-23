@@ -52,6 +52,10 @@ io.on('connection', (socket) => {
                 referredBy: (data.ref && data.ref !== sId) ? data.ref : null 
             });
             await user.save();
+        } else {
+            user.photo = data.photo || user.photo;
+            user.name = data.name || user.name;
+            await user.save();
         }
         if (data.wallet) user.wallet = data.wallet;
         socket.emit('updateUserData', user);
@@ -74,23 +78,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('depositConfirmed', async (amt) => {
-        const depositAmt = parseFloat(amt);
-        if (isNaN(depositAmt) || depositAmt <= 0) return;
-        
-        // Начисление ровно той суммы, которую человек пополнил
-        const user = await User.findOneAndUpdate(
-            { userId: socket.userId }, 
-            { $inc: { balance: depositAmt } }, 
-            { new: true }
-        );
-        
-        if (user && user.referredBy) {
-            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
-        }
-        if (user) io.to(socket.userId).emit('updateUserData', user);
-    });
-
     socket.on('requestWithdraw', async (data) => {
         const user = await User.findOne({ userId: socket.userId });
         const amt = parseFloat(data.amount);
@@ -101,7 +88,7 @@ io.on('connection', (socket) => {
             const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
             const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
             const contract = tonClient.open(wallet);
-            const netAmt = (amt * 0.99).toFixed(4); // Комиссия 1%
+            const netAmt = (amt * 0.99).toFixed(4); // 1% комиссия
 
             await contract.transfer({
                 secretKey: key.secretKey, seqno: await contract.getSeqno(),
@@ -114,11 +101,20 @@ io.on('connection', (socket) => {
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
-            const amount = parseFloat(data.amount);
-            if (isNaN(amount)) return;
-            const target = await User.findOneAndUpdate({ username: data.target }, { $inc: { balance: amount } }, { new: true });
+            const targetUsername = data.target.replace('@', '');
+            const target = await User.findOneAndUpdate({ username: targetUsername }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
             if (target) io.to(target.userId).emit('updateUserData', target);
         }
+    });
+
+    socket.on('depositConfirmed', async (amt) => {
+        const depositAmt = parseFloat(amt);
+        if (isNaN(depositAmt) || depositAmt <= 0) return;
+        const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: depositAmt } }, { new: true });
+        if (user && user.referredBy) {
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
+        }
+        if (user) io.to(socket.userId).emit('updateUserData', user);
     });
 });
 
@@ -141,7 +137,6 @@ async function runGame() {
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
 
     const winnerBet = winner.bet;
-
     let tape = [];
     while (tape.length < 110) {
         gameState.players.forEach(p => {
