@@ -44,7 +44,7 @@
         
         #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 30px; border-radius: 30px 30px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
         #winner-popup.show { bottom: 0; }
-        .close-win { position: absolute; right: 20px; top: 15px; font-size: 32px; font-weight: bold; opacity: 0.5; }
+        .close-win { position: absolute; right: 20px; top: 15px; font-size: 32px; font-weight: bold; opacity: 0.5; cursor: pointer; }
 
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
@@ -64,7 +64,7 @@
             <div id="tape" class="tape slow-drift"></div>
         </div>
         <div style="padding: 16px; display:flex; gap:10px;">
-            <input type="number" id="bet-input" value="1.0" step="0.1" inputmode="decimal">
+            <input type="number" id="bet-input" value="0.10" step="0.01" min="0.01" inputmode="decimal">
             <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
         </div>
         <div id="players-list"></div>
@@ -73,7 +73,7 @@
     <div id="shop-page" class="page">
         <div style="padding: 100px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
-            <p style="color:var(--hint)">Раздел пополнится в следующем обновлении</p>
+            <p style="color:var(--hint)">Раздел будет доступен в обновлении</p>
         </div>
     </div>
 
@@ -245,11 +245,13 @@
         }
 
         function makeBet() { 
-            const val = document.getElementById('bet-input').value;
-            if(!val || isNaN(parseFloat(val))) return;
+            const val = parseFloat(document.getElementById('bet-input').value);
+            if(isNaN(val) || val < 0.01) return tg.showAlert("Минимальная ставка 0.01 TON");
             socket.emit('makeBet', { bet: val, photo: tg.initDataUnsafe.user?.photo_url }); 
         }
+        
         function withdraw() { let a = prompt("Сумма (мин 5 TON, ком. 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        
         function copyRefLink() {
             const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; 
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
