@@ -17,7 +17,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server live on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -95,18 +95,6 @@ io.on('connection', (socket) => {
             } catch (e) { user.balance += amt; await user.save(); }
             socket.emit('updateUserData', user);
         }
-    });
-
-    socket.on('createInvoice', async (stars) => {
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Buy TON`, payload: `dep_${socket.userId}`,
-                currency: "XTR", prices: [{ label: "Stars", amount: stars }]
-            })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result });
     });
 });
 
