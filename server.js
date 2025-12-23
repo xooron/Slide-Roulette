@@ -74,6 +74,23 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('depositConfirmed', async (amt) => {
+        const depositAmt = parseFloat(amt);
+        if (isNaN(depositAmt) || depositAmt <= 0) return;
+        
+        // Начисление ровно той суммы, которую человек пополнил
+        const user = await User.findOneAndUpdate(
+            { userId: socket.userId }, 
+            { $inc: { balance: depositAmt } }, 
+            { new: true }
+        );
+        
+        if (user && user.referredBy) {
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
+        }
+        if (user) io.to(socket.userId).emit('updateUserData', user);
+    });
+
     socket.on('requestWithdraw', async (data) => {
         const user = await User.findOne({ userId: socket.userId });
         const amt = parseFloat(data.amount);
@@ -84,11 +101,11 @@ io.on('connection', (socket) => {
             const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
             const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
             const contract = tonClient.open(wallet);
-            const netAmt = (amt * 0.99).toFixed(4); // 1% комиссия
+            const netAmt = (amt * 0.99).toFixed(4); // Комиссия 1%
 
             await contract.transfer({
                 secretKey: key.secretKey, seqno: await contract.getSeqno(),
-                messages: [internal({ to: user.wallet, value: toNano(netAmt), bounce: false, body: "Withdraw" })]
+                messages: [internal({ to: user.wallet, value: toNano(netAmt.toString()), bounce: false, body: "Withdraw" })]
             });
         } catch (e) { user.balance += amt; await user.save(); }
         socket.emit('updateUserData', user);
@@ -97,23 +114,21 @@ io.on('connection', (socket) => {
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
-            const target = await User.findOneAndUpdate({ username: data.target }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
+            const amount = parseFloat(data.amount);
+            if (isNaN(amount)) return;
+            const target = await User.findOneAndUpdate({ username: data.target }, { $inc: { balance: amount } }, { new: true });
             if (target) io.to(target.userId).emit('updateUserData', target);
         }
     });
 });
 
 function startCountdown() {
-    if (countdownInterval) return; // Защита от двойного таймера
+    if (countdownInterval) return;
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
         gameState.timeLeft--;
         io.emit('timer', gameState.timeLeft);
-        if (gameState.timeLeft <= 0) { 
-            clearInterval(countdownInterval); 
-            countdownInterval = null; 
-            runGame(); 
-        }
+        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runGame(); }
     }, 1000);
 }
 
@@ -124,6 +139,8 @@ async function runGame() {
     const winnerRandom = Math.random() * currentBank;
     let current = 0, winner = gameState.players[0];
     for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
+
+    const winnerBet = winner.bet;
 
     let tape = [];
     while (tape.length < 110) {
@@ -141,7 +158,7 @@ async function runGame() {
         const winAmount = currentBank * 0.95;
         await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount } });
         await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: currentBank * 0.05 } });
-        io.emit('winnerUpdate', { winner, winAmount });
+        io.emit('winnerUpdate', { winner, winAmount, winnerBet });
         
         setTimeout(() => {
             gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
