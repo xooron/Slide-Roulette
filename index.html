@@ -246,7 +246,7 @@
         }
         function withdraw() { let a = prompt("Вывод (мин 5 TON, комиссия 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function copyRefLink() {
-            const link = `https://t.me/ВАШ_БОТ_ЮЗЕРНЕЙМ/app?startapp=${myId}`; 
+            const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; 
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
             document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Ссылка скопирована!");
         }
@@ -266,3 +266,4 @@
     </script>
 </body>
 </html>
+
