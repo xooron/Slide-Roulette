@@ -7,9 +7,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
+// Курс обмена: 1 Star = 0.02 TON (50 Stars = 1 TON)
+const STARS_TO_TON_RATE = 0.02;
+
 const GIFT_MARKET = {
     "PlushPepe": { 
-        price: 650000, 
+        price: 13000, // Цена в TON (650000 * 0.02)
         img: "https://cache.tonapi.io/imgproxy/P0Z2Vj7bG1tucX0LSvES-_W7cGHKtb3KUKxFtaoN3wM/rs:fill:500:500:1/g:no/aHR0cHM6Ly9uZnQuZnJhZ21lbnQuY29tL2dpZnQvcGx1c2hwZXBlLTE3OC53ZWJw.webp" 
     }
 };
@@ -25,7 +28,7 @@ const userSchema = new mongoose.Schema({
     userId: { type: String, unique: true },
     username: String,
     name: String,
-    balance: { type: Number, default: 0 },
+    balance: { type: Number, default: 0 }, // Теперь баланс в TON
     gamesPlayed: { type: Number, default: 0 },
     referralsCount: { type: Number, default: 0 },
     referralIncome: { type: Number, default: 0 },
@@ -34,7 +37,7 @@ const userSchema = new mongoose.Schema({
         itemId: String,
         name: String,
         image: String,
-        price: Number,
+        price: Number, // В TON
         isStaked: { type: Boolean, default: false },
         stakeStart: Date
     }]
@@ -43,7 +46,6 @@ const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
-// Вебхук для обработки платежей
 app.post('/webhook', async (req, res) => {
     const update = req.body;
     if (update.pre_checkout_query) {
@@ -56,8 +58,12 @@ app.post('/webhook', async (req, res) => {
     if (update.message?.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
-        const amount = parseInt(update.message.successful_payment.total_amount);
-        const user = await User.findOneAndUpdate({ userId }, { $inc: { balance: amount } }, { new: true });
+        const starsAmount = parseInt(update.message.successful_payment.total_amount);
+        
+        // КОНВЕРТАЦИЯ: Звезды в TON
+        const tonAmount = starsAmount * STARS_TO_TON_RATE;
+        
+        const user = await User.findOneAndUpdate({ userId }, { $inc: { balance: tonAmount } }, { new: true });
         if (user) io.to(userId).emit('updateUserData', user);
     }
     res.sendStatus(200);
@@ -77,7 +83,7 @@ io.on('connection', (socket) => {
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 10 });
+            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 0.1 }); // Начальный бонус 0.1 TON
             await user.save();
         }
         socket.emit('updateUserData', user);
@@ -85,8 +91,8 @@ io.on('connection', (socket) => {
 
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
-        const amt = parseInt(data.bet);
-        if (isNaN(amt) || amt < 1) return;
+        const amt = parseFloat(data.bet);
+        if (isNaN(amt) || amt <= 0) return;
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < amt) return;
         
@@ -124,17 +130,18 @@ io.on('connection', (socket) => {
         io.emit('sync', gameState);
     }
 
-    socket.on('createInvoice', async (amount) => {
+    socket.on('createInvoice', async (starsAmount) => {
         if(!socket.userId) return;
+        const tonToGet = (starsAmount * STARS_TO_TON_RATE).toFixed(2);
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                title: `Купить ${amount} ⭐`,
-                description: `Пополнение баланса в Slide Roulette`,
+                title: `Купить ${tonToGet} TON`,
+                description: `Обмен ${starsAmount} Звезд на ${tonToGet} TON`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
-                prices: [{ label: "Stars", amount: amount }]
+                prices: [{ label: "Stars", amount: starsAmount }]
             })
         });
         const d = await res.json();
@@ -167,7 +174,7 @@ io.on('connection', (socket) => {
         if (gift) {
             await User.findOneAndUpdate({ username: new RegExp(`^${cleanUser}$`, "i") }, { $push: { inventory: { itemId: Date.now().toString(), name: data.amount, image: gift.img, price: gift.price } } });
         } else {
-            const amt = parseInt(data.amount);
+            const amt = parseFloat(data.amount);
             if (!isNaN(amt)) await User.findOneAndUpdate({ username: new RegExp(`^${cleanUser}$`, "i") }, { $inc: { balance: amt } });
         }
         const target = await User.findOne({ username: new RegExp(`^${cleanUser}$`, "i") });
@@ -209,7 +216,7 @@ async function runGame() {
     gameState.winnerIndex = 85;
     io.emit('startSpin', gameState);
 
-    const winAmount = Math.floor(currentBank * 0.95);
+    const winAmount = currentBank * 0.95;
     const multiplier = (winAmount / (winner.bet || 1)).toFixed(2);
 
     setTimeout(async () => {
