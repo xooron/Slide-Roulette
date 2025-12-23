@@ -7,12 +7,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_USERNAME = 'maesexs';
 
-// Курс обмена: 1 Star = 0.02 TON (50 Stars = 1 TON)
-const STARS_TO_TON_RATE = 0.02;
+// Курс: 50 Stars = 1 TON (как на Fragment)
+const STARS_TO_TON = 0.02;
 
 const GIFT_MARKET = {
     "PlushPepe": { 
-        price: 13000, // Цена в TON (650000 * 0.02)
+        price: 13000, // 650,000 * 0.02
         img: "https://cache.tonapi.io/imgproxy/P0Z2Vj7bG1tucX0LSvES-_W7cGHKtb3KUKxFtaoN3wM/rs:fill:500:500:1/g:no/aHR0cHM6Ly9uZnQuZnJhZ21lbnQuY29tL2dpZnQvcGx1c2hwZXBlLTE3OC53ZWJw.webp" 
     }
 };
@@ -26,18 +26,16 @@ app.use(express.static(__dirname));
 
 const userSchema = new mongoose.Schema({
     userId: { type: String, unique: true },
+    wallet: String,
     username: String,
     name: String,
-    balance: { type: Number, default: 0 }, // Теперь баланс в TON
-    gamesPlayed: { type: Number, default: 0 },
-    referralsCount: { type: Number, default: 0 },
-    referralIncome: { type: Number, default: 0 },
-    referredBy: { type: String, default: null },
+    balance: { type: Number, default: 0 },
+    referralIncome: { type: Number, default: 0 }, // Сюда капает стейкинг
     inventory: [{
         itemId: String,
         name: String,
         image: String,
-        price: Number, // В TON
+        price: Number,
         isStaked: { type: Boolean, default: false },
         stakeStart: Date
     }]
@@ -45,6 +43,34 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
+
+// Функция расчета стейкинга (0.1% в день от цены NFT)
+async function processStake(user) {
+    let now = new Date();
+    let earned = 0;
+    let changed = false;
+
+    user.inventory.forEach(item => {
+        if (item.isStaked && item.stakeStart) {
+            let diffMs = now - new Date(item.stakeStart);
+            let diffDays = diffMs / (1000 * 60 * 60 * 24);
+            if (diffDays > 0) {
+                let dailyYield = item.price * 0.001; // 0.1% в день
+                earned += dailyYield * diffDays;
+                item.stakeStart = now; // Сбрасываем таймер после начисления
+                changed = true;
+            }
+        }
+    });
+
+    if (earned > 0) {
+        user.referralIncome += earned;
+        await user.save();
+    } else if (changed) {
+        await user.save();
+    }
+    return user;
+}
 
 app.post('/webhook', async (req, res) => {
     const update = req.body;
@@ -58,46 +84,47 @@ app.post('/webhook', async (req, res) => {
     if (update.message?.successful_payment) {
         const payload = update.message.successful_payment.invoice_payload;
         const userId = payload.split('_')[1];
-        const starsAmount = parseInt(update.message.successful_payment.total_amount);
-        
-        // КОНВЕРТАЦИЯ: Звезды в TON
-        const tonAmount = starsAmount * STARS_TO_TON_RATE;
-        
-        const user = await User.findOneAndUpdate({ userId }, { $inc: { balance: tonAmount } }, { new: true });
+        const stars = parseInt(update.message.successful_payment.total_amount);
+        const ton = stars * STARS_TO_TON;
+        const user = await User.findOneAndUpdate({ userId }, { $inc: { balance: ton } }, { new: true });
         if (user) io.to(userId).emit('updateUserData', user);
     }
     res.sendStatus(200);
 });
 
-let gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, onlineCount: 0, tapeLayout: [], winnerIndex: 85 };
+let gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
-    gameState.onlineCount = io.engine.clientsCount;
-    io.emit('sync', gameState);
-
     socket.on('auth', async (userData) => {
-        if (!userData || !userData.id) return;
+        if (!userData?.id) return;
         const sId = userData.id.toString();
         socket.join(sId);
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 0.1 }); // Начальный бонус 0.1 TON
+            user = new User({ userId: sId, username: userData.username, name: userData.name, balance: 0.1 });
             await user.save();
         }
+        user = await processStake(user);
         socket.emit('updateUserData', user);
+    });
+
+    socket.on('linkWallet', async (addr) => {
+        if(!socket.userId) return;
+        await User.updateOne({ userId: socket.userId }, { wallet: addr });
     });
 
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const amt = parseFloat(data.bet);
         if (isNaN(amt) || amt <= 0) return;
-        const user = await User.findOne({ userId: socket.userId });
+        let user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < amt) return;
         
-        const updatedUser = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: -amt } }, { new: true });
-        socket.emit('updateUserData', updatedUser);
+        user.balance -= amt;
+        await user.save();
+        socket.emit('updateUserData', user);
         addPlayer(socket.userId, user.name, data.photo, amt, null);
     });
 
@@ -130,22 +157,36 @@ io.on('connection', (socket) => {
         io.emit('sync', gameState);
     }
 
-    socket.on('createInvoice', async (starsAmount) => {
+    socket.on('createInvoice', async (stars) => {
         if(!socket.userId) return;
-        const tonToGet = (starsAmount * STARS_TO_TON_RATE).toFixed(2);
         const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                title: `Купить ${tonToGet} TON`,
-                description: `Обмен ${starsAmount} Звезд на ${tonToGet} TON`,
+                title: `Пополнение TON`,
+                description: `Обмен ${stars} ⭐ на ${(stars*STARS_TO_TON).toFixed(2)} TON`,
                 payload: `dep_${socket.userId}`,
                 provider_token: "", currency: "XTR",
-                prices: [{ label: "Stars", amount: starsAmount }]
+                prices: [{ label: "Stars", amount: stars }]
             })
         });
         const d = await res.json();
         if (d.ok) socket.emit('invoiceLink', { url: d.result });
+    });
+
+    socket.on('toggleStake', async (itemId) => {
+        let user = await User.findOne({ userId: socket.userId });
+        if(!user) return;
+        user = await processStake(user); // Начисляем старое перед переключением
+
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item) return;
+        
+        item.isStaked = !item.isStaked;
+        item.stakeStart = item.isStaked ? new Date() : null;
+        
+        await user.save();
+        socket.emit('updateUserData', user);
     });
 
     socket.on('exchangeNFT', async (itemId) => {
@@ -154,15 +195,6 @@ io.on('connection', (socket) => {
         const item = user.inventory.find(i => i.itemId === itemId);
         if (!item || item.isStaked) return;
         await User.updateOne({ userId: socket.userId }, { $inc: { balance: item.price }, $pull: { inventory: { itemId: itemId } } });
-        socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
-    });
-
-    socket.on('toggleStake', async (itemId) => {
-        const user = await User.findOne({ userId: socket.userId });
-        const item = user.inventory.find(i => i.itemId === itemId);
-        if (!item) return;
-        const newState = !item.isStaked;
-        await User.updateOne({ userId: socket.userId, "inventory.itemId": itemId }, { $set: { "inventory.$.isStaked": newState, "inventory.$.stakeStart": newState ? new Date() : null } });
         socket.emit('updateUserData', await User.findOne({ userId: socket.userId }));
     });
 
@@ -180,8 +212,6 @@ io.on('connection', (socket) => {
         const target = await User.findOne({ username: new RegExp(`^${cleanUser}$`, "i") });
         if (target) io.to(target.userId).emit('updateUserData', target);
     });
-
-    socket.on('disconnect', () => { gameState.onlineCount = io.engine.clientsCount; io.emit('sync', gameState); });
 });
 
 function startCountdown() {
@@ -213,7 +243,6 @@ async function runGame() {
     tape[85] = { photo: winner.photo, color: winner.color, name: winner.name };
 
     gameState.tapeLayout = tape;
-    gameState.winnerIndex = 85;
     io.emit('startSpin', gameState);
 
     const winAmount = currentBank * 0.95;
@@ -222,7 +251,7 @@ async function runGame() {
     setTimeout(async () => {
         const winDoc = await User.findOneAndUpdate(
             { userId: winner.userId }, 
-            { $inc: { balance: winAmount, gamesPlayed: 1 }, $push: { inventory: { $each: currentNFTs } } }, 
+            { $inc: { balance: winAmount }, $push: { inventory: { $each: currentNFTs } } }, 
             { new: true }
         );
         io.emit('winnerUpdate', { winner, winAmount, multiplier });
