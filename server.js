@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
                 const contract = tonClient.open(wallet);
                 await contract.transfer({
                     secretKey: key.secretKey, seqno: await contract.getSeqno(),
-                    messages: [internal({ to: user.wallet, value: toNano((amt * 0.95).toString()), bounce: false, body: "Withdrawal" })]
+                    messages: [internal({ to: user.wallet, value: toNano((amt * 0.95).toString()), bounce: false, body: "Withdraw" })]
                 });
             } catch (e) { user.balance += amt; await user.save(); }
             socket.emit('updateUserData', user);
