@@ -3,22 +3,22 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
-const { mnemonicToWalletKey } = require("@ton/crypto"); // ИСПРАВЛЕНО ИМЯ МОДУЛЯ
+const { mnemonicToWalletKey } = require("@ton/crypto"); // ИСПРАВЛЕНО: @ton/crypto вместо @ton/ton-crypto
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
-const MNEMONIC = process.env.MNEMONIC;
-const ADMIN_WALLET = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; // Для комиссии и NFT
+const ADMIN_USERNAME = 'maesexs'; 
+const MNEMONIC = process.env.MNEMONIC; // 24 слова
 
 const app = express();
 app.use(express.json());
-app.use(express.static(__dirname)); // Чтобы манифест был доступен
-
+app.use(express.static(__dirname));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// Мгновенный запуск порта для Render
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -26,13 +26,16 @@ const userSchema = new mongoose.Schema({
     wallet: { type: String, unique: true },
     username: String,
     balance: { type: Number, default: 0.5 },
-    inventory: Array
+    inventory: [{ itemId: String, name: String, image: String, price: Number, isStaked: Boolean, stakeStart: Date }]
 });
 const User = mongoose.model('User', userSchema);
-mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
-// Функция автоматической выплаты выигрыша
-async function sendWin(toAddress, amount) {
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log("==> DB Connected"))
+    .catch(err => console.error("==> DB Error:", err));
+
+// Функция выплаты (автоматический перевод)
+async function sendTon(toAddress, amount) {
     try {
         const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
         const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
@@ -40,10 +43,10 @@ async function sendWin(toAddress, amount) {
         const seqno = await contract.getSeqno();
         await contract.transfer({
             secretKey: key.secretKey, seqno,
-            messages: [internal({ to: toAddress, value: toNano(amount.toString()), bounce: false, body: "Win!" })]
+            messages: [internal({ to: toAddress, value: toNano(amount.toString()), bounce: false, body: "Roulette Win!" })]
         });
         return true;
-    } catch (e) { console.error("TON Error:", e); return false; }
+    } catch (e) { console.error("Transfer error:", e); return false; }
 }
 
 let gameState = { bank: 0, players: [], isSpinning: false, timeLeft: 0 };
@@ -54,7 +57,10 @@ io.on('connection', (socket) => {
         socket.wallet = data.wallet;
         socket.join(data.wallet);
         let user = await User.findOne({ wallet: data.wallet });
-        if (!user) { user = new User({ wallet: data.wallet, username: data.username }); await user.save(); }
+        if (!user) {
+            user = new User({ wallet: data.wallet, username: data.username });
+            await user.save();
+        }
         socket.emit('updateUserData', user);
     });
 
@@ -71,10 +77,21 @@ io.on('connection', (socket) => {
             if (gameState.players.length >= 2 && gameState.timeLeft === 0) startTimer();
         }
     });
+
+    socket.on('requestWithdraw', async (data) => {
+        const user = await User.findOne({ wallet: socket.wallet });
+        const amt = parseFloat(data.amount);
+        if (user && user.balance >= amt && amt >= 1) {
+            user.balance -= amt; await user.save();
+            const ok = await sendTon(user.wallet, amt * 0.95); // 5% комиссия
+            if (!ok) { user.balance += amt; await user.save(); }
+            socket.emit('updateUserData', user);
+        }
+    });
 });
 
 function startTimer() {
-    gameState.timeLeft = 10;
+    gameState.timeLeft = 15;
     let t = setInterval(() => {
         gameState.timeLeft--; io.emit('timer', gameState.timeLeft);
         if (gameState.timeLeft <= 0) { clearInterval(t); runGame(); }
@@ -84,12 +101,15 @@ function startTimer() {
 async function runGame() {
     gameState.isSpinning = true;
     const winner = gameState.players[Math.floor(Math.random() * gameState.players.length)];
-    const rake = gameState.bank * 0.05; // 5% комиссия тебе
+    const rake = gameState.bank * 0.05; // 5% комиссия вам
     const winAmount = gameState.bank - rake;
 
     await User.findOneAndUpdate({ wallet: winner.wallet }, { $inc: { balance: winAmount } });
-    await User.findOneAndUpdate({ wallet: ADMIN_WALLET }, { $inc: { balance: rake } });
+    await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: rake } });
 
     io.emit('winnerUpdate', { winner, winAmount });
-    setTimeout(() => { gameState = { bank: 0, players: [], isSpinning: false, timeLeft: 0 }; io.emit('sync', gameState); }, 5000);
+    setTimeout(() => {
+        gameState = { bank: 0, players: [], isSpinning: false, timeLeft: 0 };
+        io.emit('sync', gameState);
+    }, 5000);
 }
