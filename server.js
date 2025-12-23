@@ -8,7 +8,7 @@ const { mnemonicToWalletKey } = require("@ton/crypto");
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
-const ADMIN_WALLET = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; // Для приема TON
+const ADMIN_WALLET = process.env.ADMIN_WALLET || "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih";
 const ADMIN_USERNAME = 'maesexs';
 
 const app = express();
@@ -18,7 +18,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server live on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -28,24 +28,23 @@ const userSchema = new mongoose.Schema({
     username: String,
     name: String,
     photo: String,
-    balance: { type: Number, default: 0 }, // ВСЕ ОБНУЛЕНО
+    balance: { type: Number, default: 0 },
     totalFarmed: { type: Number, default: 0 },
-    referralsCount: { type: Number, default: 0 },
     inventory: []
 });
 const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI).then(async () => {
     console.log("==> DB Connected");
-    // УДАЛЯЕМ ПРОБЛЕМНЫЙ ИНДЕКС АВТОМАТИЧЕСКИ
     try { await User.collection.dropIndex("wallet_1"); } catch (e) {}
 });
 
-let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
+let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85, onlineCount: 0 };
 let countdownInterval = null;
 
 io.on('connection', (socket) => {
-    socket.emit('sync', gameState);
+    gameState.onlineCount = io.engine.clientsCount;
+    io.emit('sync', gameState);
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
@@ -83,7 +82,7 @@ io.on('connection', (socket) => {
 
     socket.on('depositConfirmed', async (amt) => {
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: parseFloat(amt) } }, { new: true });
-        if (user) socket.emit('updateUserData', user);
+        if (user) io.to(socket.userId).emit('updateUserData', user);
     });
 
     socket.on('requestWithdraw', async (data) => {
@@ -102,18 +101,6 @@ io.on('connection', (socket) => {
             } catch (e) { user.balance += amt; await user.save(); }
             socket.emit('updateUserData', user);
         }
-    });
-
-    socket.on('createInvoice', async (stars) => {
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Buy TON`, payload: `dep_${socket.userId}`,
-                currency: "XTR", prices: [{ label: "Stars", amount: stars }]
-            })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result });
     });
 });
 
@@ -153,7 +140,6 @@ async function runGame() {
         
         io.emit('winnerUpdate', { winner, winAmount });
         
-        // ОЧИСТКА ДЛЯ НОВОЙ ИГРЫ
         gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
         setTimeout(() => io.emit('sync', gameState), 3000);
     }, 11000);
