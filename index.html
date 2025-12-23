@@ -16,9 +16,9 @@
         .page.active { display: flex; }
 
         .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        #ton-connect-btn-header { scale: 0.8; transform-origin: left; margin-right: auto; }
+        #ton-connect-btn { scale: 0.8; transform-origin: left; }
         
-        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; margin-left: auto; }
+        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
         .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; cursor: pointer; }
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
@@ -49,7 +49,7 @@
 
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div id="ton-connect-btn-header"></div>
+            <div id="ton-connect-btn"></div>
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -111,12 +111,12 @@
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
 
-        // ВАЖНО: ЗАМЕНИ ЭТОТ АДРЕС НА СВОЙ
-        const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
+        // ВАЖНО: ВСТАВЬТЕ ВАШ АДРЕС СЮДА
+        const MY_TON_ADDRESS = "ВАШ_ТОН_АДРЕС"; 
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
-            buttonRootId: 'ton-connect-btn-header'
+            buttonRootId: 'ton-connect-btn'
         });
 
         function getAva(url, name) { 
@@ -195,8 +195,7 @@
             if(!tonConnectUI.account) return tg.showAlert("Подключите кошелек!");
 
             try {
-                // Преобразование в нанотоны (умножаем на 10^9 и переводим в строку)
-                const nanoAmount = Math.floor(amt * 1000000000).toString();
+                const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
                 const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
                     messages: [{
@@ -211,12 +210,12 @@
                     tg.showAlert("Успешно пополнено!");
                 }
             } catch (e) { 
-                tg.showAlert("Ошибка оплаты. Проверьте баланс."); 
+                tg.showAlert("Ошибка или отмена оплаты"); 
             }
         }
 
         function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
-        function withdraw() { let a = prompt("Сумма вывода (мин 1 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        function withdraw() { let a = prompt("Сумма вывода (мин 0.5 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function switchTab(t, el) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
