@@ -17,7 +17,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server live on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -75,6 +75,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('depositConfirmed', async (amt) => {
+        if (!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: parseFloat(amt) } }, { new: true });
         if (user) io.to(socket.userId).emit('updateUserData', user);
     });
