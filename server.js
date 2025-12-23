@@ -16,8 +16,9 @@ app.use(express.static(__dirname));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// 1. ЗАПУСК ПОРТА СРАЗУ (РЕШЕНИЕ ОШИБКИ RENDER)
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -35,7 +36,7 @@ const User = mongoose.model('User', userSchema);
 mongoose.connect(MONGODB_URI).then(async () => {
     console.log("==> DB Connected");
     try { await User.collection.dropIndex("wallet_1"); } catch (e) {}
-});
+}).catch(err => console.log("DB connection error:", err));
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
 let countdownInterval = null;
@@ -83,7 +84,7 @@ io.on('connection', (socket) => {
     socket.on('requestWithdraw', async (data) => {
         const user = await User.findOne({ userId: socket.userId });
         const amt = parseFloat(data.amount);
-        if (user && user.wallet && user.balance >= amt && amt >= 1) {
+        if (user && user.wallet && user.balance >= amt && amt >= 0.5) {
             user.balance -= amt; await user.save();
             try {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
@@ -91,7 +92,7 @@ io.on('connection', (socket) => {
                 const contract = tonClient.open(wallet);
                 await contract.transfer({
                     secretKey: key.secretKey, seqno: await contract.getSeqno(),
-                    messages: [internal({ to: user.wallet, value: toNano((amt * 0.95).toString()), bounce: false, body: "Withdraw" })]
+                    messages: [internal({ to: user.wallet, value: toNano((amt * 0.95).toString()), bounce: false, body: "Withdrawal" })]
                 });
             } catch (e) { user.balance += amt; await user.save(); }
             socket.emit('updateUserData', user);
