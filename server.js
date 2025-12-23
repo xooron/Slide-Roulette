@@ -16,7 +16,6 @@ app.use(express.static(__dirname));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// 1. ЗАПУСК ПОРТА СРАЗУ (РЕШЕНИЕ ОШИБКИ RENDER)
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on ${PORT}`));
 
@@ -81,21 +80,43 @@ io.on('connection', (socket) => {
         if (user) io.to(socket.userId).emit('updateUserData', user);
     });
 
+    // ИЗМЕНЕНО: Минимум 5 TON и Комиссия 1%
     socket.on('requestWithdraw', async (data) => {
+        if (!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const amt = parseFloat(data.amount);
-        if (user && user.wallet && user.balance >= amt && amt >= 0.5) {
-            user.balance -= amt; await user.save();
+        
+        // Минимум 5 TON
+        if (user && user.wallet && user.balance >= amt && amt >= 5) {
+            user.balance -= amt; 
+            await user.save();
             try {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
                 const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
                 const contract = tonClient.open(wallet);
+                
+                // Расчет суммы к отправке (Сумма - 1% комиссии)
+                // Используем .toFixed(9) чтобы избежать ошибок с плавающей точкой в toNano
+                const amountToSend = (amt * 0.99).toFixed(9);
+
                 await contract.transfer({
-                    secretKey: key.secretKey, seqno: await contract.getSeqno(),
-                    messages: [internal({ to: user.wallet, value: toNano((amt * 0.95).toString()), bounce: false, body: "Withdrawal" })]
+                    secretKey: key.secretKey, 
+                    seqno: await contract.getSeqno(),
+                    messages: [internal({ 
+                        to: user.wallet, 
+                        value: toNano(amountToSend), 
+                        bounce: false, 
+                        body: "Withdrawal from Roulette" 
+                    })]
                 });
-            } catch (e) { user.balance += amt; await user.save(); }
-            socket.emit('updateUserData', user);
+                socket.emit('updateUserData', user);
+            } catch (e) { 
+                console.error("Withdraw error:", e);
+                // В случае ошибки возвращаем баланс
+                user.balance += amt; 
+                await user.save(); 
+                socket.emit('updateUserData', user);
+            }
         }
     });
 });
