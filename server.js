@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // Настройки из переменных окружения
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
-const ADMIN_WALLET = "ВАШ_АДРЕС_КОШЕЛЬКА"; // Сюда будет идти комиссия
+const ADMIN_WALLET = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; // Сюда будет идти комиссия
 
 const app = express();
 app.use(express.json());
@@ -122,3 +122,4 @@ async function runGame() {
         io.emit('sync', gameState);
     }, 5000);
 }
+
