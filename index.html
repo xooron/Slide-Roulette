@@ -111,7 +111,6 @@
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
 
-        // ВАЖНО: ВСТАВЬТЕ ВАШ АДРЕС СЮДА
         const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
@@ -215,7 +214,8 @@
         }
 
         function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
-        function withdraw() { let a = prompt("Сумма вывода (мин 0.5 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        // ИЗМЕНЕНО: Мин 5 TON
+        function withdraw() { let a = prompt("Сумма вывода (мин 5 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function switchTab(t, el) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
@@ -227,4 +227,3 @@
     </script>
 </body>
 </html>
-
