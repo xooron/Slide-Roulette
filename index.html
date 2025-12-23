@@ -26,11 +26,10 @@
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
-        /* Бесконечное кручение */
         .slow-drift { animation: driftAnim 15s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         
-        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 4px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 4px; background: var(--glass); border-radius: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
         .segment img { width: 100%; height: 100%; object-fit: cover; }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
@@ -45,10 +44,9 @@
         input[type="number"], input[type="text"] { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; font-size: 16px; margin-bottom: 10px; text-align: center; }
         .btn-gold { width: 100%; background: var(--gold); border: none; padding: 15px; border-radius: 12px; font-weight: bold; color: black; cursor: pointer; margin-top: 5px; }
         
-        /* Всплывающее окно победы */
-        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 20px; border-radius: 25px 25px 0 0; z-index: 6000; transition: 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; }
+        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 25px; border-radius: 25px 25px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; }
         #winner-popup.show { bottom: 0; }
-        .close-win { position: absolute; right: 20px; top: 15px; font-size: 24px; font-weight: bold; }
+        .close-win { position: absolute; right: 20px; top: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -74,7 +72,7 @@
     <div id="shop-page" class="page">
         <div style="padding: 50px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
-            <p style="color:var(--hint)">Скоро здесь появятся кейсы и скины</p>
+            <p style="color:var(--hint)">Скоро открытие...</p>
         </div>
     </div>
 
@@ -82,7 +80,7 @@
         <div style="padding: 30px; text-align:center;">
             <img id="p-ava" src="" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:15px;">
             <h2 id="p-name">...</h2>
-            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:20px; border: 1px solid rgba(255,207,51,0.1);">
+            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:15px; border: 1px solid rgba(255,207,51,0.1);">
                 <div style="font-size:32px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
             </div>
             <button class="btn-gold" onclick="withdraw()">ВЫВЕСТИ TON</button>
@@ -100,13 +98,12 @@
         </div>
     </div>
 
-    <!-- Модалка Победителя -->
     <div id="winner-popup">
         <div class="close-win" onclick="this.parentElement.classList.remove('show')">×</div>
         <div style="font-size: 14px; font-weight: bold; opacity: 0.8;">ПОБЕДИТЕЛЬ!</div>
-        <div id="win-name" style="font-size: 24px; font-weight: 900; margin: 5px 0;">PLAYER</div>
-        <div id="win-amt" style="font-size: 20px; font-weight: 800;">+ 0.00 TON</div>
-        <div style="font-size: 12px; margin-top: 5px;">Удача улыбнулась тебе! 🏆</div>
+        <div id="win-name" style="font-size: 26px; font-weight: 900; margin: 5px 0;">...</div>
+        <div id="win-amt" style="font-size: 20px; font-weight: 800; color: #000;">+ 0.00 TON</div>
+        <div id="win-multiplier" style="font-size: 18px; font-weight: bold; margin-top: 5px; color: #000; background: rgba(0,0,0,0.1); display: inline-block; padding: 2px 10px; border-radius: 10px;">x0.0</div>
     </div>
 
     <div id="buy-modal" class="modal">
@@ -156,12 +153,9 @@
         tonConnectUI.onStatusChange(wallet => {
             const addr = wallet ? wallet.account.address : null;
             socket.emit('auth', { 
-                id: tg.initDataUnsafe.user?.id, 
-                username: tg.initDataUnsafe.user?.username,
-                name: tg.initDataUnsafe.user?.first_name,
-                photo: tg.initDataUnsafe.user?.photo_url,
-                wallet: addr,
-                ref: new URLSearchParams(window.location.search).get('startapp')
+                id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username,
+                name: tg.initDataUnsafe.user?.first_name, photo: tg.initDataUnsafe.user?.photo_url,
+                wallet: addr, ref: new URLSearchParams(window.location.search).get('startapp')
             });
         });
 
@@ -179,9 +173,8 @@
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
-                // Генерация ленты для бесконечного кручения в ожидании
                 if(data.players && data.players.length > 0) {
-                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
+                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}" onerror="this.src='https://ui-avatars.com/api/?name=P'"></div>`).join('');
                     tape.innerHTML = items.repeat(40);
                 } else {
                     tape.innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
@@ -202,7 +195,7 @@
             tape.classList.remove('slow-drift'); 
             tape.style.transition = 'none'; 
             tape.style.transform = 'translateX(0)';
-            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
+            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}" onerror="this.src='https://ui-avatars.com/api/?name=P'"></div>`).join('');
             const offset = (85 * 88) - (window.innerWidth / 2) + 44;
             setTimeout(() => { 
                 tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; 
@@ -213,6 +206,8 @@
         socket.on('winnerUpdate', d => {
             document.getElementById('win-name').innerText = d.winner.name;
             document.getElementById('win-amt').innerText = `+ ${d.winAmount.toFixed(2)} TON`;
+            const x = (d.winAmount / d.winnerBet).toFixed(1);
+            document.getElementById('win-multiplier').innerText = `x${x}`;
             document.getElementById('winner-popup').classList.add('show');
             
             setTimeout(() => { 
@@ -221,6 +216,7 @@
                 const t = document.getElementById('tape');
                 t.style.transition = 'none'; 
                 t.style.transform = 'translateX(0)';
+                t.innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
                 t.classList.add('slow-drift'); 
             }, 6000);
         });
@@ -235,7 +231,11 @@
                 const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
                 const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
                 const result = await tonConnectUI.sendTransaction(transaction);
-                if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); tg.showAlert("Оплата отправлена!"); }
+                if (result) { 
+                    socket.emit('depositConfirmed', amt); 
+                    closeModal('buy-modal'); 
+                    tg.showAlert(`Запрос на пополнение ${amt} TON отправлен!`); 
+                }
             } catch (e) { tg.showAlert("Ошибка оплаты"); }
         }
 
@@ -246,7 +246,7 @@
         }
         function withdraw() { let a = prompt("Вывод (мин 5 TON, комиссия 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function copyRefLink() {
-            const link = `https://t.me/ВАШ_БОТ_USERNAME/app?startapp=${myId}`; // ЗАМЕНИ ЭТО
+            const link = `https://t.me/ВАШ_БОТ_ЮЗЕРНЕЙМ/app?startapp=${myId}`; 
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
             document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Ссылка скопирована!");
         }
