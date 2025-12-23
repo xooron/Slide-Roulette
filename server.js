@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema({
     name: String,
     photo: String,
     balance: { type: Number, default: 0 },
+    refBalance: { type: Number, default: 0 },
+    referredBy: { type: String, default: null },
     inventory: []
 });
 const User = mongoose.model('User', userSchema);
@@ -50,11 +52,31 @@ io.on('connection', (socket) => {
         socket.userId = sId;
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: data.username, name: data.name, photo: data.photo });
+            user = new User({ 
+                userId: sId, 
+                username: data.username, 
+                name: data.name, 
+                photo: data.photo,
+                referredBy: (data.ref && data.ref !== sId) ? data.ref : null 
+            });
             await user.save();
         }
         if (data.wallet) user.wallet = data.wallet;
         socket.emit('updateUserData', user);
+    });
+
+    socket.on('adminAction', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin && admin.username === ADMIN_USERNAME) {
+            if (data.type === 'give') {
+                const target = await User.findOneAndUpdate(
+                    { username: data.target }, 
+                    { $inc: { balance: parseFloat(data.amount) } }, 
+                    { new: true }
+                );
+                if (target) io.to(target.userId).emit('updateUserData', target);
+            }
+        }
     });
 
     socket.on('makeBet', async (data) => {
@@ -77,46 +99,29 @@ io.on('connection', (socket) => {
     socket.on('depositConfirmed', async (amt) => {
         if (!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: parseFloat(amt) } }, { new: true });
+        if (user && user.referredBy) {
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: amt * 0.1 } }); // 10% рефка
+        }
         if (user) io.to(socket.userId).emit('updateUserData', user);
     });
 
-    // ИЗМЕНЕНО: Минимум 5 TON и Комиссия 1%
     socket.on('requestWithdraw', async (data) => {
-        if (!socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const amt = parseFloat(data.amount);
-        
-        // Минимум 5 TON
+        // МИНУМУМ 5 ТОН И КОМИССИЯ 1% (0.99)
         if (user && user.wallet && user.balance >= amt && amt >= 5) {
-            user.balance -= amt; 
-            await user.save();
+            user.balance -= amt; await user.save();
             try {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
                 const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
                 const contract = tonClient.open(wallet);
-                
-                // Расчет суммы к отправке (Сумма - 1% комиссии)
-                // Используем .toFixed(9) чтобы избежать ошибок с плавающей точкой в toNano
-                const amountToSend = (amt * 0.99).toFixed(9);
-
+                const sendAmt = (amt * 0.99).toFixed(4); // 1% комиссия
                 await contract.transfer({
-                    secretKey: key.secretKey, 
-                    seqno: await contract.getSeqno(),
-                    messages: [internal({ 
-                        to: user.wallet, 
-                        value: toNano(amountToSend), 
-                        bounce: false, 
-                        body: "Withdrawal from Roulette" 
-                    })]
+                    secretKey: key.secretKey, seqno: await contract.getSeqno(),
+                    messages: [internal({ to: user.wallet, value: toNano(sendAmt), bounce: false, body: "Withdrawal" })]
                 });
-                socket.emit('updateUserData', user);
-            } catch (e) { 
-                console.error("Withdraw error:", e);
-                // В случае ошибки возвращаем баланс
-                user.balance += amt; 
-                await user.save(); 
-                socket.emit('updateUserData', user);
-            }
+            } catch (e) { user.balance += amt; await user.save(); }
+            socket.emit('updateUserData', user);
         }
     });
 });
