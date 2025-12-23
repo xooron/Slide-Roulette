@@ -21,27 +21,28 @@
         .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; }
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
-        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; }
+        .roulette-wrap { position: relative; width: 100%; height: 100px; background: rgba(255,255,255,0.02); margin: 15px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
+        
+        /* АНИМАЦИЯ БЕСКОНЕЧНОГО ДВИЖЕНИЯ В ОЖИДАНИИ */
         .slow-drift { animation: driftAnim 20s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         
-        .segment { flex-shrink: 0; width: 70px; height: 70px; margin: 0 4px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
-        .segment img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+        .segment { flex-shrink: 0; width: 75px; height: 75px; margin: 0 5px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
+        .segment img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; }
         .nav-btn.active { color: var(--star); }
 
-        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 16px; }
-        .profile-card { background: var(--glass); padding: 15px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
-        .profile-card b { font-size: 20px; display: block; color: var(--star); }
-
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; }
-        .modal-content { background: #111; width: 90%; max-width: 340px; border-radius: 24px; padding: 20px; text-align: center; border: 1px solid var(--star); }
+        .modal-content { background: #111; width: 90%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
+        
+        input[type="number"] { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; font-size: 16px; margin-bottom: 10px; }
+        .btn-main { width: 100%; background: var(--gold); border: none; padding: 15px; border-radius: 12px; font-weight: bold; color: black; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -63,8 +64,8 @@
             <div id="tape" class="tape slow-drift"></div>
         </div>
         <div style="padding: 16px; display:flex; gap:10px;">
-            <input type="number" id="bet-input" value="1" step="0.1" style="flex:1; background:#111; border:1px solid #333; color:white; padding:12px; border-radius:12px;">
-            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:12px 24px; border-radius:12px; font-weight:bold;">СТАВКА</button>
+            <input type="number" id="bet-input" value="1" step="0.1">
+            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 25px; border-radius:12px; font-weight:bold; color:black; height:50px;">СТАВКА</button>
         </div>
         <div id="players-list"></div>
     </div>
@@ -72,32 +73,28 @@
     <div id="shop-page" class="page">
         <div style="padding: 50px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
-            <p style="color:var(--hint)">Здесь пусто...</p>
+            <p style="color:var(--hint)">Здесь пусто. Пополняйте баланс через «+» в углу.</p>
         </div>
     </div>
 
     <div id="profile-page" class="page">
-        <div style="padding: 20px; text-align:center;">
-            <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:10px;">
+        <div style="padding: 30px; text-align:center;">
+            <img id="p-ava" src="" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:15px;">
             <h2 id="p-name">...</h2>
+            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:20px;">
+                <div style="font-size:32px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
+            </div>
+            <button class="btn-main" onclick="withdraw()">ВЫВЕСТИ TON</button>
         </div>
-        <div class="profile-grid">
-            <div class="profile-card"><b id="p-bal">0</b><span>Баланс TON</span></div>
-            <div class="profile-card"><b id="p-daily" style="color:#00ff00">+0.000</b><span>В день</span></div>
-            <div class="profile-card"><b id="p-staked">0</b><span>Нафармлено</span></div>
-            <div class="profile-card"><b id="p-refs">0</b><span>Рефералы</span></div>
-        </div>
-        <button onclick="withdraw()" style="width:calc(100% - 32px); margin:16px; padding:15px; background:var(--gold); color:black; border:none; border-radius:12px; font-weight:bold;">ВЫВЕСТИ TON</button>
     </div>
 
     <div id="buy-modal" class="modal">
         <div class="modal-content">
-            <h3>Пополнение</h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
-                <button class="chip" style="justify-content:center" onclick="socket.emit('createInvoice', 50)">50 ⭐ (1 TON)</button>
-                <button class="chip" style="justify-content:center" onclick="socket.emit('createInvoice', 250)">250 ⭐ (5 TON)</button>
-            </div>
-            <button onclick="payTON(1)" style="width:100%; padding:15px; background:var(--gold); border:none; border-radius:12px; font-weight:bold;">ОПЛАТИТЬ 1 TON (Wallet)</button>
+            <h3 style="margin-top:0">Пополнение TON</h3>
+            <input type="number" id="dep-amt" placeholder="Сумма TON" value="1">
+            <button class="btn-main" onclick="payTON()">ПОПОЛНИТЬ</button>
+            <div style="margin: 15px 0; color: #555;">ИЛИ ЗВЕЗДАМИ</div>
+            <button class="btn-main" style="background:#222; color:white;" onclick="socket.emit('createInvoice', 50)">50 ⭐ (1 TON)</button>
             <button onclick="closeModal('buy-modal')" style="margin-top:20px; background:none; border:none; color:gray;">Отмена</button>
         </div>
     </div>
@@ -111,7 +108,7 @@
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
-        const ADMIN_ADDR = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih";
+        const ADMIN_ADDR = "ВАШ_АДРЕС_ДЛЯ_ПРИЕМА";
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
@@ -127,11 +124,11 @@
             if (wallet) {
                 document.getElementById('auth-screen').style.display = 'none';
                 socket.emit('auth', { 
-                    id: tg.initDataUnsafe.user?.id, 
+                    wallet: wallet.account.address, 
+                    id: tg.initDataUnsafe.user?.id,
                     username: tg.initDataUnsafe.user?.username,
                     name: tg.initDataUnsafe.user?.first_name,
-                    photo: tg.initDataUnsafe.user?.photo_url,
-                    wallet: wallet.account.address
+                    photo: tg.initDataUnsafe.user?.photo_url
                 });
             }
         });
@@ -141,8 +138,6 @@
             document.getElementById('p-bal').innerText = d.balance.toFixed(2);
             document.getElementById('p-name').innerText = d.name;
             document.getElementById('p-ava').src = getAva(d.photo, d.name);
-            document.getElementById('p-staked').innerText = d.totalFarmed.toFixed(4);
-            document.getElementById('p-refs').innerText = d.referralsCount || 0;
         });
 
         socket.on('sync', data => {
@@ -151,17 +146,18 @@
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
-                    tape.innerHTML = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('').repeat(15);
+                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
+                    tape.innerHTML = items.repeat(15);
                 } else {
                     tape.innerHTML = '<div class="segment" style="opacity:0.2">?</div>'.repeat(40);
                 }
-                document.getElementById('players-list').innerHTML = data.players.map(p => `
-                    <div class="player-row">
-                        <img src="${getAva(p.photo, p.name)}" style="width:36px; height:36px; border-radius:50%; margin-right:12px;">
-                        <div><b>${p.name}</b><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/data.bank)*100).toFixed(1)}%</div></div>
-                        <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)} TON</div>
-                    </div>`).join('');
             }
+            document.getElementById('players-list').innerHTML = data.players.map(p => `
+                <div class="player-row">
+                    <img src="${getAva(p.photo, p.name)}" style="width:36px; height:36px; border-radius:50%; margin-right:12px;">
+                    <div><b>${p.name}</b><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
+                    <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)} TON</div>
+                </div>`).join('');
         });
 
         socket.on('startSpin', (data) => {
@@ -169,7 +165,7 @@
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
-            const offset = (85 * 78) - (window.innerWidth / 2) + 39;
+            const offset = (85 * 85) - (window.innerWidth / 2) + 42;
             setTimeout(() => { tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; tape.style.transform = `translateX(-${offset}px)`; }, 50);
         });
 
@@ -180,14 +176,16 @@
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
 
-        async function payTON(amt) {
+        async function payTON() {
+            const amt = parseFloat(document.getElementById('dep-amt').value);
+            if(isNaN(amt) || amt <= 0) return;
             try {
                 const result = await tonConnectUI.sendTransaction({
                     validUntil: Math.floor(Date.now() / 1000) + 600,
                     messages: [{ address: ADMIN_ADDR, amount: (amt * 1e9).toString() }]
                 });
-                if (result) socket.emit('depositConfirmed', amt);
-            } catch (e) { tg.showAlert("Ошибка оплаты"); }
+                if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); }
+            } catch (e) { tg.showAlert("Оплата отменена"); }
         }
 
         function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
