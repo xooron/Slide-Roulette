@@ -4,59 +4,49 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Slide Roulette Pro</title>
+    <!-- Подключаем скрипты Telegram и TonConnect -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { --bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffcf33; --glass: rgba(255, 255, 255, 0.08); }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; }
         
-        /* Экран входа */
-        #login-screen { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-        
+        #auth-screen { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         .main-ui { display: none; flex-direction: column; height: 100vh; }
-        .header { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); }
+        
+        .header { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); border-bottom: 1px solid #222; }
         .chip { background: var(--glass); padding: 8px 15px; border-radius: 20px; border: 1px solid rgba(255,207,51,0.4); color: var(--star); font-weight: bold; }
         .bank { font-size: 48px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 30px 0; }
         
         .controls { padding: 20px; }
         input { width: 100%; background: #111; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; font-size: 18px; outline: none; }
         .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: bold; background: var(--gold); color: black; cursor: pointer; }
-        
-        .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: #111; display: flex; border-top: 1px solid #222; }
-        .nav-item { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #555; }
-        .nav-item.active { color: var(--star); }
+        .btn-dark { background: #222; color: white; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div id="login-screen">
-        <h1 style="background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 42px;">ROULETTE</h1>
-        <p style="color: #666; margin-bottom: 30px;">Подключите кошелек для входа</p>
+    <!-- Экран входа -->
+    <div id="auth-screen">
+        <h1 style="background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 42px; margin: 0;">ROULETTE</h1>
+        <p style="color: #555; margin-bottom: 30px;">Подключите кошелек TON</p>
+        <!-- Сюда TonConnect вставит кнопку -->
         <div id="ton-connect-btn"></div>
     </div>
 
+    <!-- Основной интерфейс (скрыт до входа) -->
     <div id="main-ui" class="main-ui">
         <div class="header">
             <div id="wallet-addr" style="font-size: 10px; color: #555;">...</div>
             <div class="chip"><span id="u-bal">0.00</span> TON</div>
         </div>
-
-        <div id="game-page">
-            <div class="bank" id="bank-val">0.00 TON</div>
-            <div id="status" style="text-align: center; color: #555; font-weight: bold;">ОЖИДАНИЕ ИГРОКОВ...</div>
-            
-            <div style="height: 100px; background: rgba(255,255,255,0.02); margin: 20px 0; display: flex; align-items: center; justify-content: center; border-y: 1px solid #222;">
-                <!-- Сюда вставь свою ленту рулетки из первого кода -->
-                <div style="width: 2px; height: 100%; background: var(--star); position: absolute; z-index: 5;"></div>
-                <div id="tape"></div>
-            </div>
-
-            <div class="controls">
-                <input type="number" id="bet-amt" value="1" step="0.1">
-                <button class="btn" onclick="sendBet()">СДЕЛАТЬ СТАВКУ</button>
-                <button class="btn" style="background: #222; color: white; margin-top: 10px;" onclick="withdraw()">ВЫВЕСТИ TON</button>
-            </div>
+        <div class="bank" id="bank-val">0.00 TON</div>
+        <div id="status" style="text-align: center; color: #555; font-weight: bold;">ОЖИДАНИЕ...</div>
+        <div class="controls">
+            <input type="number" id="bet-amt" value="1" step="0.1">
+            <button class="btn" onclick="sendBet()">СДЕЛАТЬ СТАВКУ</button>
+            <button class="btn btn-dark" onclick="withdraw()">ВЫВЕСТИ TON</button>
         </div>
     </div>
 
@@ -65,25 +55,38 @@
         const socket = io();
         tg.expand();
 
+        // 1. Настройка TonConnect
+        // ЗАМЕНИ НА СВОЙ URL ИЗ RENDER ЕСЛИ НЕ ЗАРАБОТАЕТ
+        const manifestUrl = window.location.origin + '/tonconnect-manifest.json';
+        
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-            manifestUrl: window.location.origin + '/tonconnect-manifest.json',
+            manifestUrl: manifestUrl,
             buttonRootId: 'ton-connect-btn'
         });
 
+        // 2. Слушатель статуса кошелька
         tonConnectUI.onStatusChange(wallet => {
             if (wallet) {
-                document.getElementById('login-screen').style.display = 'none';
+                console.log("Wallet connected:", wallet.account.address);
+                document.getElementById('auth-screen').style.display = 'none';
                 document.getElementById('main-ui').style.display = 'flex';
+                
                 const addr = wallet.account.address;
                 document.getElementById('wallet-addr').innerText = addr.slice(0,6)+'...'+addr.slice(-4);
+                
+                // Авторизация на сервере
                 socket.emit('auth', { 
                     wallet: addr, 
                     username: tg.initDataUnsafe.user?.username,
                     name: tg.initDataUnsafe.user?.first_name 
                 });
+            } else {
+                document.getElementById('auth-screen').style.display = 'flex';
+                document.getElementById('main-ui').style.display = 'none';
             }
         });
 
+        // 3. Сокеты
         socket.on('updateUserData', d => {
             document.getElementById('u-bal').innerText = d.balance.toFixed(2);
         });
@@ -98,11 +101,12 @@
 
         function sendBet() {
             const bet = parseFloat(document.getElementById('bet-amt').value);
-            socket.emit('makeBet', { bet });
+            if (bet > 0) socket.emit('makeBet', { bet });
+            else tg.showAlert("Введите сумму ставки!");
         }
 
         function withdraw() {
-            const amt = prompt("Сколько вывести TON (мин. 1)?");
+            const amt = prompt("Введите сумму для вывода (мин 1 TON):");
             if (amt) socket.emit('requestWithdraw', { amount: amt });
         }
     </script>
