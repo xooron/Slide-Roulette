@@ -7,8 +7,8 @@ const { mnemonicToWalletKey } = require("@ton/crypto");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
-const MNEMONIC = process.env.MNEMONIC; // 24 слова твоего горячего кошелька
-const ADMIN_WALLET = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; // Адрес для приема NFT и комиссии
+const MNEMONIC = process.env.MNEMONIC; 
+const ADMIN_WALLET = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; // Сюда слать NFT и комиссии
 const ADMIN_USERNAME = 'maesexs';
 
 const app = express();
@@ -18,43 +18,28 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on ${PORT}`));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
 const userSchema = new mongoose.Schema({
     wallet: { type: String, unique: true },
+    tgId: String,
     username: String,
     name: String,
+    photo: String,
     balance: { type: Number, default: 0.5 },
-    referralIncome: { type: Number, default: 0 },
-    inventory: [{ itemId: String, name: String, image: String, price: Number, isStaked: { type: Boolean, default: false }, stakeStart: Date }]
+    totalFarmed: { type: Number, default: 0 },
+    inventory: [{ itemId: String, name: String, image: String, price: Number, isStaked: Boolean, stakeStart: Date }]
 });
 const User = mongoose.model('User', userSchema);
 mongoose.connect(MONGODB_URI).then(() => console.log("==> DB Connected"));
 
-// --- АВТОМАТИЧЕСКИЙ ПРИЕМ NFT ---
-async function scanForNfts() {
-    try {
-        const txs = await tonClient.getTransactions(ADMIN_WALLET, { limit: 10 });
-        for (const tx of txs) {
-            if (tx.in_msg && tx.in_msg.source && tx.in_msg.msg_data) {
-                const sender = tx.in_msg.source;
-                const user = await User.findOne({ wallet: sender });
-                if (user) {
-                    // Если нашли транзакцию от юзера, добавляем ему "Подарок"
-                    // (Логика упрощена: любой перевод NFT на твой кошелек от юзера дает ему предмет в приложении)
-                    const newItem = { itemId: Date.now().toString(), name: "NFT Подарок", image: "https://cache.tonapi.io/imgproxy/P0Z2Vj7bG1tucX0LSvES-_W7cGHKtb3KUKxFtaoN3wM/rs:fill:500:500:1/g:no/aHR0cHM6Ly9uZnQuZnJhZ21lbnQuY29tL2dpZnQvcGx1c2hwZXBlLTE3OC53ZWJw.webp", price: 100 };
-                    await User.updateOne({ wallet: sender }, { $push: { inventory: newItem } });
-                }
-            }
-        }
-    } catch (e) { console.log("NFT Scan Error"); }
-}
-setInterval(scanForNfts, 30000); // Раз в 30 секунд
+const GIFT_MARKET = {
+    "PlushPepe": { price: 100, img: "https://cache.tonapi.io/imgproxy/P0Z2Vj7bG1tucX0LSvES-_W7cGHKtb3KUKxFtaoN3wM/rs:fill:500:500:1/g:no/aHR0cHM6Ly9uZnQuZnJhZ21lbnQuY29tL2dpZnQvcGx1c2hwZXBlLTE3OC53ZWJw.webp" }
+};
 
-let gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
-let countdownInterval = null;
+let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
 
 io.on('connection', (socket) => {
     socket.on('auth', async (data) => {
@@ -62,9 +47,22 @@ io.on('connection', (socket) => {
         socket.wallet = data.wallet; socket.join(data.wallet);
         let user = await User.findOne({ wallet: data.wallet });
         if (!user) {
-            user = new User({ wallet: data.wallet, username: data.username, name: data.name || "Player" });
+            user = new User({ wallet: data.wallet, tgId: data.id, username: data.username, name: data.name, photo: data.photo });
             await user.save();
+        } else {
+            user.name = data.name; user.photo = data.photo; user.username = data.username; await user.save();
         }
+        
+        // Начисление стейкинга
+        let earned = 0;
+        user.inventory.forEach(i => {
+            if (i.isStaked && i.stakeStart) {
+                let diff = (new Date() - new Date(i.stakeStart)) / (1000 * 60 * 60 * 24);
+                earned += (i.price * 0.001) * diff;
+                i.stakeStart = new Date();
+            }
+        });
+        if (earned > 0) { user.balance += earned; user.totalFarmed += earned; await user.save(); }
         socket.emit('updateUserData', user);
     });
 
@@ -74,30 +72,27 @@ io.on('connection', (socket) => {
         const user = await User.findOne({ wallet: socket.wallet });
         if (user && user.balance >= amt && amt > 0) {
             user.balance -= amt; await user.save();
-            addPlayer(user, amt, data.photo);
+            gameState.players.push({ wallet: user.wallet, name: user.name, photo: user.photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)` });
+            gameState.bank += amt;
             socket.emit('updateUserData', user);
+            io.emit('sync', { ...gameState, onlineCount: io.engine.clientsCount });
+            if (gameState.players.length >= 2 && gameState.timeLeft === 0) startTimer();
         }
     });
 
-    socket.on('betWithNFT', async (itemId) => {
-        if (gameState.isSpinning || !socket.wallet) return;
-        const user = await User.findOne({ wallet: socket.wallet });
-        const item = user.inventory.find(i => i.itemId === itemId);
-        if (!item || item.isStaked) return;
-        const val = item.price;
-        await User.updateOne({ wallet: socket.wallet }, { $pull: { inventory: { itemId: itemId } } });
-        addPlayer(user, val, null, item.image);
-        socket.emit('updateUserData', await User.findOne({ wallet: socket.wallet }));
+    socket.on('adminGive', async (data) => {
+        const admin = await User.findOne({ wallet: socket.wallet });
+        if (admin.username !== ADMIN_USERNAME) return;
+        const target = await User.findOne({ username: data.user.replace('@','') });
+        if (!target) return;
+        if (GIFT_MARKET[data.amt]) {
+            target.inventory.push({ itemId: Date.now().toString(), name: data.amt, image: GIFT_MARKET[data.amt].img, price: GIFT_MARKET[data.amt].price, isStaked: false });
+        } else {
+            target.balance += parseFloat(data.amt);
+        }
+        await target.save();
+        io.to(target.wallet).emit('updateUserData', target);
     });
-
-    function addPlayer(user, amt, photo, nftImg) {
-        let p = gameState.players.find(x => x.wallet === user.wallet);
-        if (p) { p.bet += amt; } 
-        else { gameState.players.push({ wallet: user.wallet, name: user.name, photo: photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)`, nftImg }); }
-        gameState.bank += amt;
-        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
-        io.emit('sync', gameState);
-    }
 
     socket.on('toggleStake', async (itemId) => {
         const user = await User.findOne({ wallet: socket.wallet });
@@ -108,26 +103,17 @@ io.on('connection', (socket) => {
             await user.save(); socket.emit('updateUserData', user);
         }
     });
-
-    socket.on('createInvoice', async (stars) => {
-        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: `TopUp TON`, payload: `dep_${socket.wallet}`, currency: "XTR", prices: [{ label: "Stars", amount: stars }] })
-        });
-        const d = await res.json();
-        if (d.ok) socket.emit('invoiceLink', { url: d.result });
-    });
 });
 
-function startCountdown() {
+function startTimer() {
     gameState.timeLeft = 15;
-    countdownInterval = setInterval(() => {
+    let t = setInterval(() => {
         gameState.timeLeft--; io.emit('timer', gameState.timeLeft);
-        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runGame(); }
+        if (gameState.timeLeft <= 0) { clearInterval(t); runGame(); }
     }, 1000);
 }
 
-async function runGame() {й
+async function runGame() {
     gameState.isSpinning = true;
     const winnerRandom = Math.random() * gameState.bank;
     let current = 0, winner = gameState.players[0];
@@ -145,14 +131,14 @@ async function runGame() {й
     gameState.tapeLayout = tape;
 
     io.emit('startSpin', gameState);
-
     const rake = gameState.bank * 0.05;
-    const winAmount = gameState.bank - rake;
+    const winNet = gameState.bank - rake;
 
     setTimeout(async () => {
-        await User.findOneAndUpdate({ wallet: winner.wallet }, { $inc: { balance: winAmount } });
+        await User.findOneAndUpdate({ wallet: winner.wallet }, { $inc: { balance: winNet } });
         await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: rake } });
-        io.emit('winnerUpdate', { winner, winAmount });
-        setTimeout(() => { gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 5000);
+        io.emit('winnerUpdate', { winner, winAmount: winNet });
+        gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [], winnerIndex: 85 };
+        setTimeout(() => io.emit('sync', gameState), 1000);
     }, 11000);
 }
