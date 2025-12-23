@@ -2,297 +2,154 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Slide Roulette Pro TON</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>TON Roulette Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <!-- TonConnect SDK -->
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
-        :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #0088cc, #00aaff); --star: #0088cc; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; outline: none; }
-        body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-        
-        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
-        .page.active { display: flex; }
-
-        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); padding-top: calc(10px + env(safe-area-inset-top)); gap: 8px; }
-        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(0,136,204,0.3); color: #fff; font-weight: 800; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
-        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #fff; font-size: 20px; font-weight: 900; }
-
-        #ton-connect-btn { scale: 0.8; transform-origin: right; }
-
-        .bank-val { font-size: 38px; font-weight: 900; color: #0088cc; text-align: center; margin: 10px 0; }
-        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
-        .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: #0088cc; z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px #0088cc; }
-        
-        .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
-        .slow-drift { animation: driftAnim 20s linear infinite; width: max-content; }
-        @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        
-        .segment { flex-shrink: 0; width: 70px; height: 70px; margin: 0 4px; background: var(--glass); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
-        .segment img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #222; }
-
-        .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
-        .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; }
-        .nav-btn.active { color: #0088cc; }
-        .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
-
-        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 16px; }
-        .profile-card { background: var(--glass); padding: 15px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
-        .profile-card b { font-size: 20px; display: block; }
-        .action-btn { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); color: white; width: calc(100% - 32px); margin: 5px 16px; padding: 16px; border-radius: 14px; font-weight: bold; font-size: 14px; text-align: center; }
-
-        .inv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
-        .inv-card { background: var(--glass); border-radius: 20px; padding: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.05); position: relative; }
-        .inv-card img { width: 80px; height: 80px; margin-bottom: 8px; border-radius: 10px; }
-        .daily-badge { position: absolute; top: 8px; right: 8px; background: #00ff00; color: #000; font-size: 9px; padding: 2px 6px; border-radius: 8px; font-weight: 900; }
-
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; z-index: 5000; }
-        .modal-content { background: #111; width: 100%; max-width: 320px; border-radius: 24px; padding: 20px; text-align: center; border: 1px solid #0088cc; }
-        .modal-win { position: fixed; bottom: 90px; left: 16px; right: 16px; background: rgba(20,20,25,0.98); border-radius: 24px; border: 2px solid #0088cc; display: none; align-items: center; padding: 16px; transform: translateY(250%); transition: 0.5s; z-index: 2000; }
-        .modal-win.show { display: flex; transform: translateY(0); }
+        :root { --tg-bg: #0a0a0c; --blue: #0088cc; --glass: rgba(255, 255, 255, 0.08); }
+        body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; overflow: hidden; }
+        .page { display: none; height: 100vh; padding-bottom: 80px; overflow-y: auto; }
+        .active { display: flex; flex-direction: column; }
+        .top-nav { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); }
+        .wallet-chip { background: var(--glass); padding: 10px 15px; border-radius: 15px; border: 1px solid var(--blue); display: flex; align-items: center; gap: 10px; }
+        .balance-main { font-size: 42px; font-weight: 900; color: var(--blue); text-align: center; margin: 20px 0; }
+        .profile-card { background: var(--glass); border-radius: 18px; padding: 15px; text-align: center; border: 1px solid #222; }
+        .profile-card b { display: block; font-size: 20px; color: var(--blue); }
+        .inv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
+        .inv-item { background: var(--glass); border-radius: 15px; padding: 10px; text-align: center; position: relative; border: 1px solid #333; }
+        .stake-badge { position: absolute; top: 5px; right: 5px; background: #00ff00; color: #000; font-size: 9px; padding: 2px 5px; border-radius: 5px; font-weight: bold; }
+        .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: #111; display: flex; border-top: 1px solid #222; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #555; }
+        .nav-btn.active { color: var(--blue); }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:1000; padding:20px; flex-direction: column; justify-content: center; }
+        .buy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .buy-btn { background: var(--glass); border: 1px solid var(--blue); color: white; padding: 15px; border-radius: 15px; }
     </style>
 </head>
 <body>
 
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div class="chip"><span id="bal-game">0</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
-            <div id="ton-connect-btn"></div>
+            <div id="ton-connect"></div>
+            <div class="wallet-chip" onclick="openModal('buy-modal')">
+                <span id="bal-header">0.00</span> TON
+                <b style="color:var(--blue); font-size: 20px;">+</b>
+            </div>
         </div>
-        <div class="bank-val" id="bank-val">0 TON</div>
-        <div id="timer-label" style="text-align:center; font-size:10px; color:var(--hint); font-weight:bold;">ОЖИДАЕМ ИГРОКОВ...</div>
-        <div class="roulette-wrap">
-            <div class="pointer"></div>
-            <div id="tape" class="tape slow-drift"></div>
-        </div>
-        <div style="padding: 0 16px; display:flex; gap:10px; margin-bottom: 10px;">
-            <input type="number" id="bet-input" value="1" step="0.1" style="flex:1; background:#111; border:1px solid #333; color:white; padding:12px; border-radius:12px; font-weight:bold;">
-            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:12px 24px; border-radius:12px; font-weight:900; color:#fff;">СТАВКА</button>
-        </div>
-        <button onclick="openNFTSelector()" style="background:#6a1b9a; color:white; border:none; padding:12px; border-radius:12px; font-weight:900; margin:0 16px 15px 16px;">ВЫБРАТЬ NFT ПОДАРОК</button>
-        <div id="players-list"></div>
-    </div>
+        
+        <div class="balance-main" id="bank-display">0.00 TON</div>
+        <p style="text-align: center; color: #555; margin-top: -20px;">BANK</p>
 
-    <div id="shop-page" class="page">
-        <div style="padding: 50px 20px; text-align:center; color: var(--hint);">
-            <h3>Магазин пуст</h3>
-            <p>Все покупки через баланс TON</p>
+        <div style="padding: 15px; display: flex; gap: 10px;">
+            <input type="number" id="bet-input" value="1" style="flex: 1; background: #111; border: 1px solid #333; color: white; padding: 15px; border-radius: 15px;">
+            <button onclick="makeBet()" style="background: var(--blue); border: none; color: white; padding: 0 30px; border-radius: 15px; font-weight: bold;">BET</button>
         </div>
+
+        <div id="players-list" style="padding: 15px;"></div>
     </div>
 
     <div id="profile-page" class="page">
-        <div style="padding: 20px 0; text-align:center;">
-            <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid #0088cc; object-fit:cover;">
-            <h2 id="p-name">...</h2>
-        </div>
-        <div class="profile-grid">
-            <div class="profile-card"><b id="p-bal">0</b><span>Баланс TON</span></div>
-            <div class="profile-card"><b id="p-stake-total">0</b><span>Нафармлено</span></div>
-            <div class="profile-card"><b id="p-daily" style="color:#00ff00">0</b><span>В день</span></div>
-            <div class="profile-card"><b id="p-refs">0</b><span>Рефы</span></div>
-        </div>
-        <button class="action-btn" onclick="copyRef()">Скопировать ссылку</button>
-        <button class="action-btn" onclick="switchTab('inventory')">Инвентарь & Стейкинг</button>
-
-        <div id="admin-p" style="display:none; margin: 16px; padding: 15px; border: 1px dashed #0088cc; border-radius: 15px;">
-            <input type="text" id="adm-user" placeholder="@username" style="width:100%; padding:10px; margin-bottom:10px; background:#111; color:white; border:1px solid #333;">
-            <input type="text" id="adm-amt" placeholder="Сумма TON или PlushPepe" style="width:100%; padding:10px; margin-bottom:10px; background:#111; color:white; border:1px solid #333;">
-            <button onclick="adminGive()" style="width:100%; background:var(--gold); padding:10px; border:none; border-radius:10px; font-weight:bold; color:#fff;">ВЫПОЛНИТЬ</button>
+        <div style="padding: 30px; text-align: center;">
+            <div id="user-addr" style="font-size: 12px; color: var(--blue); margin-bottom: 20px;">Connect wallet...</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="profile-card"><b id="p-bal">0.00</b>TON Balance</div>
+                <div class="profile-card"><b id="p-daily" style="color:#00ff00">+0.00</b>Daily Yield</div>
+                <div class="profile-card"><b id="p-staked">0.00</b>Total Farmed</div>
+                <div class="profile-card"><b>-</b>Rank</div>
+            </div>
+            <button onclick="switchTab('inventory')" style="width:100%; margin-top:20px; padding:18px; background:var(--glass); border:1px solid #333; color:white; border-radius:15px;">MY INVENTORY</button>
         </div>
     </div>
 
     <div id="inventory-page" class="page">
-        <div style="padding: 20px; text-align:center;">
-            <h2>Инвентарь</h2>
-            <div id="inv-list" class="inv-grid"></div>
-            <button class="action-btn" onclick="switchTab('profile')">Назад</button>
-        </div>
-    </div>
-
-    <div class="nav">
-        <div class="nav-btn active" onclick="switchTab('game', this)"><svg viewBox="0 0 24 24"><path d="M6 12h4m-2-2v4m5-2h.01m2.99 0h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Игра</span></div>
-        <div class="nav-btn" onclick="switchTab('shop', this)"><svg viewBox="0 0 24 24"><path d="M3 9h18v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm3 0V7a6 6 0 1112 0v2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Магазин</span></div>
-        <div class="nav-btn" onclick="switchTab('profile', this)"><svg viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Профиль</span></div>
+        <h2 style="text-align: center;">Inventory</h2>
+        <div id="inv-list" class="inv-grid"></div>
+        <button onclick="switchTab('profile')" style="margin: 20px; color: #555; border: none; background: none;">← Back</button>
     </div>
 
     <div id="buy-modal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom:10px;">Купить TON</h2>
-            <p style="font-size:12px; color:var(--hint); margin-bottom:20px;">Цены как на Fragment</p>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(50)">1 TON<br>50 ⭐</button>
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(100)">2 TON<br>100 ⭐</button>
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(250)">5 TON<br>250 ⭐</button>
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(500)">10 TON<br>500 ⭐</button>
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(1000)">20 TON<br>1000 ⭐</button>
-                <button class="action-btn" style="margin:0; padding:10px; font-size:11px;" onclick="pay(2500)">50 TON<br>2500 ⭐</button>
-            </div>
-            <button onclick="closeModal('buy-modal')" style="margin-top:20px; color:gray; background:none; border:none;">Отмена</button>
+        <h2 style="text-align: center;">Buy TON via Stars</h2>
+        <p style="text-align: center; color: #666; font-size: 12px; margin-bottom: 20px;">Fragment Official Prices</p>
+        <div class="buy-grid">
+            <button class="buy-btn" onclick="pay(50)">1.25 TON<br><small>50 ⭐</small></button>
+            <button class="buy-btn" onclick="pay(100)">2.50 TON<br><small>100 ⭐</small></button>
+            <button class="buy-btn" onclick="pay(250)">6.25 TON<br><small>250 ⭐</small></button>
+            <button class="buy-btn" onclick="pay(500)">12.50 TON<br><small>500 ⭐</small></button>
+            <button class="buy-btn" onclick="pay(1000)">25.00 TON<br><small>1000 ⭐</small></button>
+            <button class="buy-btn" onclick="pay(2500)">62.50 TON<br><small>2500 ⭐</small></button>
         </div>
+        <button onclick="closeModal('buy-modal')" style="margin-top: 30px; color: #555; border: none; background: none;">Close</button>
     </div>
 
-    <div id="sell-modal" class="modal">
-        <div class="modal-content">
-            <img id="sell-img" src="" style="width:100px; margin-bottom:15px; border-radius:10px;">
-            <h3 id="sell-name">NFT</h3>
-            <h2 style="color:#0088cc"><span id="sell-price">0</span> TON</h2>
-            <button class="action-btn" id="confirm-sell-btn" style="background:#00ff00; color:black;">ПРОДАТЬ</button>
-            <button onclick="closeModal('sell-modal')" style="background:none; border:none; color:gray; margin-top:10px;">Отмена</button>
-        </div>
-    </div>
-
-    <div id="nft-bet-modal" class="modal">
-        <div class="modal-content" style="max-height:80%; overflow-y:auto;">
-            <h3>Выбери NFT для ставки</h3>
-            <div id="nft-bet-list" class="inv-grid"></div>
-            <button onclick="closeModal('nft-bet-modal')" style="margin-top:15px; color:gray; background:none; border:none;">Закрыть</button>
-        </div>
-    </div>
-
-    <div id="win-modal" class="modal-win">
-        <img id="win-ava" src="" style="width:55px; height:55px; border-radius:50%; margin-right:15px; border:2px solid #0088cc; object-fit: cover;">
-        <div style="flex:1">
-            <div id="win-n" style="font-weight:bold;"></div>
-            <div><span id="win-a" style="color:#0088cc; font-weight:900; font-size:20px;">0</span> TON <span id="win-x" style="color:#0ff; font-weight:bold;">x0.0</span></div>
-        </div>
+    <div class="nav">
+        <div class="nav-btn active" onclick="switchTab('game', this)"><span>PLAY</span></div>
+        <div class="nav-btn" onclick="switchTab('profile', this)"><span>PROFILE</span></div>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
-        let me = {}; let isSpinningLocal = false;
+        const tg = window.Telegram.WebApp;
+        const socket = io();
+        tg.expand();
 
-        // Инициализация TonConnect
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: 'https://raw.githubusercontent.com/ton-community/tutorials/main/03-client/unprotected/public/tonconnect-manifest.json',
-            buttonRootId: 'ton-connect-btn'
+            buttonRootId: 'ton-connect'
         });
 
         tonConnectUI.onStatusChange(wallet => {
-            if (wallet) socket.emit('linkWallet', wallet.account.address);
-        });
-
-        function getAva(url, name) { 
-            if (url && url.length > 5) return url;
-            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'P')}&background=random&color=fff&size=128`; 
-        }
-
-        socket.emit('auth', { id: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.username, name: tg.initDataUnsafe.user?.first_name || 'Player', photo: tg.initDataUnsafe.user?.photo_url || "" });
-        socket.on('updateUserData', (data) => { me = data; updateUI(); });
-
-        function updateUI() {
-            document.getElementById('bal-game').innerText = (me.balance || 0).toFixed(2);
-            document.getElementById('p-bal').innerText = (me.balance || 0).toFixed(2);
-            document.getElementById('p-name').innerText = me.name;
-            document.getElementById('p-ava').src = getAva(tg.initDataUnsafe.user?.photo_url, me.name);
-            document.getElementById('p-stake-total').innerText = (me.referralIncome || 0).toFixed(4);
-            document.getElementById('p-refs').innerText = me.referralsCount || 0;
-            
-            // Расчет дохода в день
-            let daily = 0;
-            (me.inventory || []).forEach(item => { if(item.isStaked) daily += (item.price * 0.001); });
-            document.getElementById('p-daily').innerText = "+" + daily.toFixed(4) + " TON";
-
-            const invList = document.getElementById('inv-list');
-            invList.innerHTML = (me.inventory || []).map(item => `
-                <div class="inv-card">
-                    ${item.isStaked ? `<div class="daily-badge">+${(item.price*0.001).toFixed(4)}/d</div>` : ''}
-                    <img src="${item.image}">
-                    <div style="font-weight:bold; font-size:12px; margin: 5px 0;">${item.name}</div>
-                    <button onclick="openSellModal('${item.itemId}', '${item.name}', '${item.image}', ${item.price})" style="width:100%; background:#00ff00; color:black; border:none; padding:6px; border-radius:8px; font-weight:bold; font-size:10px; margin-bottom:5px;">ПРОДАТЬ</button>
-                    <button onclick="socket.emit('toggleStake', '${item.itemId}')" style="width:100%; background:${item.isStaked ? '#ff3b30' : '#007bff'}; color:white; border:none; padding:6px; border-radius:8px; font-weight:bold; font-size:10px;">${item.isStaked?'СНЯТЬ':'СТЕЙКИНГ'}</button>
-                </div>
-            `).join('');
-        }
-
-        function openSellModal(id, name, img, price) {
-            document.getElementById('sell-img').src = img;
-            document.getElementById('sell-name').innerText = name;
-            document.getElementById('sell-price').innerText = price.toFixed(2);
-            document.getElementById('confirm-sell-btn').onclick = () => { socket.emit('exchangeNFT', id); closeModal('sell-modal'); };
-            openModal('sell-modal');
-        }
-
-        function openNFTSelector() {
-            const list = document.getElementById('nft-bet-list');
-            const items = (me.inventory || []).filter(i => !i.isStaked);
-            if(items.length === 0) return tg.showAlert("У тебя нет NFT для ставки!");
-            list.innerHTML = items.map(item => `
-                <div class="inv-card" onclick="betNFT('${item.itemId}')">
-                    <img src="${item.image}">
-                    <div style="font-weight:bold; font-size:10px;">${item.name}</div>
-                    <div style="color:#0088cc; font-size:10px;">${item.price} TON</div>
-                </div>
-            `).join('');
-            openModal('nft-bet-modal');
-        }
-
-        function betNFT(id) { socket.emit('betWithNFT', id); closeModal('nft-bet-modal'); }
-        function switchTab(t, el) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById(t + '-page').classList.add('active');
-            if(el) { document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); el.classList.add('active'); }
-        }
-
-        function makeBet() {
-            if(isSpinningLocal) return;
-            const v = parseFloat(document.getElementById('bet-input').value);
-            if(v > me.balance || isNaN(v) || v <= 0) return tg.showAlert("Недостаточно TON!");
-            socket.emit('makeBet', { name: me.name, photo: tg.initDataUnsafe.user?.photo_url, bet: v });
-        }
-
-        function pay(amtStars) { closeModal('buy-modal'); socket.emit('createInvoice', amtStars); }
-        socket.on('invoiceLink', (d) => { tg.openInvoice(d.url, (s) => { if(s==='paid') tg.showAlert("Успешно!"); }); });
-        function adminGive() { socket.emit('adminGiveStars', { targetUsername: document.getElementById('adm-user').value, amount: document.getElementById('adm-amt').value }); tg.showAlert("Запрос отправлен"); }
-        function copyRef() { navigator.clipboard.writeText(`https://t.me/slideroulettebot?start=${tg.initDataUnsafe.user?.id}`); tg.showAlert("Ссылка копирована!"); }
-        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-        socket.on('sync', (data) => {
-            document.getElementById('bank-val').innerText = (data.bank || 0).toFixed(2) + " TON";
-            if(!isSpinningLocal) {
-                const tape = document.getElementById('tape');
-                if(data.players && data.players.length > 0) {
-                    let base = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
-                    tape.innerHTML = base.repeat(15); 
-                } else {
-                    let empty = '<div class="segment" style="opacity:0.2">?</div>';
-                    tape.innerHTML = empty.repeat(40);
-                }
-                document.getElementById('players-list').innerHTML = (data.players || []).map(p => `
-                    <div class="player-row">
-                        <img src="${getAva(p.photo, p.name)}" style="width:36px; height:36px; border-radius:50%; margin-right:12px; border:1px solid rgba(255,255,255,0.1)">
-                        <div><div style="font-weight:bold;">${p.name}</div><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
-                        <div style="margin-left:auto; text-align:right; display:flex; align-items:center; gap:8px;">
-                            ${p.nftImg ? `<img src="${p.nftImg}" style="width:24px; height:24px; border-radius:4px; border:1px solid #0088cc;">` : ''}
-                            <div style="font-weight:bold; color:#0088cc;">${p.bet.toFixed(2)} TON</div>
-                        </div>
-                    </div>`).join('');
+            if (wallet) {
+                const addr = wallet.account.address;
+                document.getElementById('user-addr').innerText = addr.substring(0,6) + '...' + addr.substring(addr.length-4);
+                socket.emit('auth', { wallet: addr, tgId: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.first_name });
             }
         });
 
-        socket.on('startSpin', (data) => {
-            isSpinningLocal = true;
-            const tape = document.getElementById('tape');
-            tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
-            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment" style="border-bottom:3px solid ${c.color}"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
-            const offset = (data.winnerIndex * 78) - (window.innerWidth / 2) + 39;
-            setTimeout(() => { tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; tape.style.transform = `translateX(-${offset}px)`; }, 50);
+        socket.on('updateUserData', (data) => {
+            const b = data.balance.toFixed(2);
+            document.getElementById('bal-header').innerText = b;
+            document.getElementById('p-bal').innerText = b;
+            document.getElementById('p-staked').innerText = data.totalStakedIncome.toFixed(4);
+
+            let daily = 0;
+            data.inventory.forEach(i => { if(i.isStaked) daily += i.price * 0.001 });
+            document.getElementById('p-daily').innerText = "+" + daily.toFixed(4);
+
+            const list = document.getElementById('inv-list');
+            list.innerHTML = data.inventory.map(item => `
+                <div class="inv-item">
+                    ${item.isStaked ? '<span class="stake-badge">FARMING</span>' : ''}
+                    <img src="${item.image}" style="width: 80px;">
+                    <div style="font-size: 12px; margin: 5px 0;">${item.name}</div>
+                    <button onclick="socket.emit('toggleStake', '${item.itemId}')" style="width:100%; border:none; padding:8px; border-radius:10px; background:${item.isStaked ? '#ff3b30' : '#007bff'}; color:white; font-size:10px;">
+                        ${item.isStaked ? 'UNSTAKE' : 'STAKE'}
+                    </button>
+                </div>
+            `).join('');
         });
 
-        socket.on('winnerUpdate', (data) => {
-            const m = document.getElementById('win-modal');
-            document.getElementById('win-ava').src = getAva(data.winner.photo, data.winner.name);
-            document.getElementById('win-n').innerText = data.winner.name;
-            document.getElementById('win-a').innerText = data.winAmount.toFixed(2);
-            document.getElementById('win-x').innerText = "x" + data.multiplier;
-            m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 50);
-            setTimeout(() => { m.classList.remove('show'); setTimeout(() => { m.style.display = 'none'; isSpinningLocal = false; const t = document.getElementById('tape'); t.style.transition = 'none'; t.style.transform = 'translateX(0)'; t.classList.add('slow-drift'); }, 500); }, 5000);
+        socket.on('sync', (data) => {
+            document.getElementById('bank-display').innerText = data.bank.toFixed(2) + " TON";
         });
 
-        socket.on('timer', (t) => { if(!isSpinningLocal) document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
+        function switchTab(id, el) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id + '-page').classList.add('active');
+            if(el) {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                el.classList.add('active');
+            }
+        }
+
+        function pay(stars) { socket.emit('createInvoice', stars); }
+        socket.on('invoiceLink', (d) => tg.openInvoice(d.url));
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function makeBet() {
+            const bet = document.getElementById('bet-input').value;
+            socket.emit('makeBet', { bet, photo: tg.initDataUnsafe.user?.photo_url });
+        }
     </script>
 </body>
 </html>
