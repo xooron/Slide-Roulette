@@ -5,17 +5,8 @@ const mongoose = require('mongoose');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
-const ADMIN_USERNAME = 'maesexs';
-
-// Цены Fragment: Stars -> TON
-const PACKAGES = {
-    50: 1.25,
-    100: 2.50,
-    250: 6.25,
-    500: 12.50,
-    1000: 25.00,
-    2500: 62.50
-};
+const ADMIN_USERNAME = 'maesexs'; 
+const RAKE_PERCENT = 0.05; // 5% комиссия вам
 
 const app = express();
 app.use(express.json());
@@ -23,18 +14,15 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.static(__dirname));
 
-// ЗАПУСК СЕРВЕРА СРАЗУ (Важно для Render)
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`==> Server is running on port ${PORT}`);
-});
+server.listen(PORT, '0.0.0.0', () => console.log(`Server started on ${PORT}`));
 
 const userSchema = new mongoose.Schema({
-    wallet: { type: String, unique: true },
-    tgId: String,
+    userId: String,
+    wallet: { type: String, unique: true, sparse: true },
     username: String,
+    name: String,
     balance: { type: Number, default: 0 },
-    totalStakedIncome: { type: Number, default: 0 },
     inventory: [{
         itemId: String,
         name: String,
@@ -46,82 +34,89 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI)
-    .then(() => console.log("==> DB Connected Successfully"))
-    .catch(err => console.error("==> DB Connection Error:", err));
+mongoose.connect(MONGODB_URI).then(() => console.log("DB Connected"));
 
-// Расчет стейкинга (0.1% в день)
-async function updateStaking(user) {
-    let now = new Date();
-    let earned = 0;
-    let changed = false;
-
-    user.inventory.forEach(item => {
-        if (item.isStaked && item.stakeStart) {
-            let diffMs = now - new Date(item.stakeStart);
-            let diffDays = diffMs / (1000 * 60 * 60 * 24);
-            if (diffDays > 0.0001) { // Начисляем даже за короткие периоды
-                let yieldAmount = (item.price * 0.001) * diffDays;
-                earned += yieldAmount;
-                item.stakeStart = now;
-                changed = true;
-            }
-        }
-    });
-
-    if (earned > 0) {
-        user.balance += earned;
-        user.totalStakedIncome += earned;
-        await user.save();
-    } else if (changed) {
-        await user.save();
-    }
-    return user;
-}
-
-// Обработка платежей (Webhook)
+// Вебхук для покупки TON за Звезды (Fragment Style)
 app.post('/webhook', async (req, res) => {
-    try {
-        const update = req.body;
-        if (update.pre_checkout_query) {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-            });
-        }
-        if (update.message?.successful_payment) {
-            const wallet = update.message.successful_payment.invoice_payload.split('_')[1];
-            const stars = update.message.successful_payment.total_amount;
-            const tonToAdd = PACKAGES[stars] || 0;
-            const user = await User.findOneAndUpdate({ wallet }, { $inc: { balance: tonToAdd } }, { new: true });
-            if (user) io.to(wallet).emit('updateUserData', user);
-        }
-    } catch (e) { console.error("Webhook Error:", e); }
+    const update = req.body;
+    if (update.pre_checkout_query) {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
+        });
+    }
+    if (update.message?.successful_payment) {
+        const payload = update.message.successful_payment.invoice_payload;
+        const wallet = payload.split('_')[1];
+        const stars = update.message.successful_payment.total_amount;
+        const ton = stars * 0.025; // Примерный курс
+        const user = await User.findOneAndUpdate({ wallet }, { $inc: { balance: ton } }, { new: true });
+        if (user) io.to(wallet).emit('updateUserData', user);
+    }
     res.sendStatus(200);
 });
 
-let gameState = { bank: 0, players: [], isSpinning: false };
+let gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, tapeLayout: [] };
+let countdownInterval = null;
 
 io.on('connection', (socket) => {
     socket.on('auth', async (data) => {
         if (!data.wallet) return;
         socket.join(data.wallet);
         socket.wallet = data.wallet;
-        
         let user = await User.findOne({ wallet: data.wallet });
         if (!user) {
-            user = new User({ wallet: data.wallet, tgId: data.tgId, username: data.username, balance: 0.1 });
+            user = new User({ wallet: data.wallet, userId: data.id, username: data.username, name: data.name, balance: 0.5 });
             await user.save();
         }
-        user = await updateStaking(user);
         socket.emit('updateUserData', user);
     });
 
+    socket.on('makeBet', async (data) => {
+        if (gameState.isSpinning || !socket.wallet) return;
+        const amt = parseFloat(data.bet);
+        if (isNaN(amt) || amt <= 0) return;
+        const user = await User.findOne({ wallet: socket.wallet });
+        if (!user || user.balance < amt) return;
+        
+        user.balance -= amt;
+        await user.save();
+        socket.emit('updateUserData', user);
+        addPlayer(user, amt, null);
+    });
+
+    socket.on('betWithNFT', async (itemId) => {
+        if (gameState.isSpinning || !socket.wallet) return;
+        const user = await User.findOne({ wallet: socket.wallet });
+        const item = user.inventory.find(i => i.itemId === itemId);
+        if (!item || item.isStaked) return;
+
+        const val = item.price;
+        const nftData = { itemId: item.itemId, name: item.name, image: item.image, price: item.price };
+        user.inventory = user.inventory.filter(i => i.itemId !== itemId);
+        await user.save();
+        socket.emit('updateUserData', user);
+
+        gameState.potNFTs.push(nftData);
+        addPlayer(user, val, item.image);
+    });
+
+    function addPlayer(user, amt, nftImg) {
+        let p = gameState.players.find(x => x.wallet === user.wallet);
+        if (p) {
+            p.bet += amt;
+            if(nftImg) p.nftImg = nftImg;
+        } else {
+            gameState.players.push({ wallet: user.wallet, name: user.name, photo: user.photo, bet: amt, color: `hsl(${Math.random()*360}, 70%, 60%)`, nftImg });
+        }
+        gameState.bank += amt;
+        if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
+        io.emit('sync', gameState);
+    }
+
     socket.on('toggleStake', async (itemId) => {
-        if (!socket.wallet) return;
-        let user = await User.findOne({ wallet: socket.wallet });
-        if (!user) return;
+        const user = await User.findOne({ wallet: socket.wallet });
         const item = user.inventory.find(i => i.itemId === itemId);
         if (item) {
             item.isStaked = !item.isStaked;
@@ -132,37 +127,55 @@ io.on('connection', (socket) => {
     });
 
     socket.on('createInvoice', async (stars) => {
-        if (!socket.wallet) return;
-        try {
-            const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: `Пополнение ${PACKAGES[stars]} TON`,
-                    description: `Пакет ${stars} звезд (Fragment)`,
-                    payload: `dep_${socket.wallet}`,
-                    provider_token: "",
-                    currency: "XTR",
-                    prices: [{ label: "Stars", amount: stars }]
-                })
-            });
-            const d = await res.json();
-            if (d.ok) socket.emit('invoiceLink', { url: d.result });
-        } catch (e) { console.error("Invoice Error:", e); }
-    });
-
-    socket.on('makeBet', async (data) => {
-        if (gameState.isSpinning || !socket.wallet) return;
-        const amt = parseFloat(data.bet);
-        if (isNaN(amt) || amt <= 0) return;
-        const user = await User.findOne({ wallet: socket.wallet });
-        if (user && user.balance >= amt) {
-            user.balance -= amt;
-            await user.save();
-            gameState.players.push({ wallet: user.wallet, name: user.username || 'User', bet: amt, photo: data.photo });
-            gameState.bank += amt;
-            socket.emit('updateUserData', user);
-            io.emit('sync', gameState);
-        }
+        const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `TON Balance`,
+                description: `Top up via Stars`,
+                payload: `dep_${socket.wallet}`,
+                currency: "XTR",
+                prices: [{ label: "Stars", amount: stars }]
+            })
+        });
+        const d = await res.json();
+        if (d.ok) socket.emit('invoiceLink', { url: d.result });
     });
 });
+
+function startCountdown() {
+    gameState.timeLeft = 15;
+    countdownInterval = setInterval(() => {
+        gameState.timeLeft--;
+        io.emit('timer', gameState.timeLeft);
+        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runGame(); }
+    }, 1000);
+}
+
+async function runGame() {
+    if (gameState.players.length < 2) return;
+    gameState.isSpinning = true;
+    const currentBank = gameState.bank;
+    const currentNFTs = [...gameState.potNFTs];
+
+    const winnerRandom = Math.random() * currentBank;
+    let current = 0, winner = gameState.players[0];
+    for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
+
+    io.emit('startSpin', { winnerWallet: winner.wallet });
+
+    // Расчет комиссии (5%)
+    const rake = currentBank * RAKE_PERCENT;
+    const winAmount = currentBank - rake;
+
+    setTimeout(async () => {
+        // Начисляем победителю
+        await User.findOneAndUpdate({ wallet: winner.wallet }, { $inc: { balance: winAmount }, $push: { inventory: { $each: currentNFTs } } });
+        // Начисляем комиссию админу
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: rake } });
+
+        io.emit('winnerUpdate', { winner, winAmount });
+        gameState = { players: [], bank: 0, potNFTs: [], isSpinning: false, timeLeft: 0, tapeLayout: [] };
+        io.emit('sync', gameState);
+    }, 10000);
+}
