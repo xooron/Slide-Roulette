@@ -1,35 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>TON Roulette</title>
+    <title>Slide Roulette Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
         :root { --bg: #0a0a0c; --gold: #ffcf33; --glass: rgba(255, 255, 255, 0.05); }
-        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; overflow-x: hidden; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: white; margin: 0; overflow-x: hidden; }
+        
         #auth-page { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .main-ui { display: none; flex-direction: column; height: 100vh; }
+        
         .header { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: #111; }
         .balance { background: var(--glass); padding: 8px 15px; border-radius: 20px; border: 1px solid var(--gold); font-weight: bold; }
-        .bank { font-size: 48px; font-weight: 900; color: var(--gold); text-align: center; margin: 30px 0; text-shadow: 0 0 20px rgba(255,207,51,0.3); }
+        .bank { font-size: 48px; font-weight: 900; color: var(--gold); text-align: center; margin: 30px 0; }
+        
         .controls { padding: 20px; }
         input { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; font-size: 18px; outline: none; }
-        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; }
         .btn-gold { background: var(--gold); color: black; }
         .btn-dark { background: #222; color: white; margin-top: 10px; }
+        
         .inv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px; }
-        .inv-card { background: var(--glass); border-radius: 15px; padding: 10px; text-align: center; border: 1px solid #222; position: relative; }
-        .stake-badge { position: absolute; top: 5px; right: 5px; background: #00ff00; color: black; font-size: 9px; padding: 2px 5px; border-radius: 5px; font-weight: bold; }
+        .inv-card { background: var(--glass); border-radius: 15px; padding: 10px; text-align: center; border: 1px solid #222; }
     </style>
 </head>
 <body>
 
     <div id="auth-page">
-        <h1 style="color: var(--gold); letter-spacing: 2px; margin-bottom: 5px;">SLIDE ROULETTE</h1>
-        <p style="color: #555; margin-bottom: 30px;">ПОДКЛЮЧИТЕ КОШЕЛЕК TON</p>
+        <h1 style="color: var(--gold); letter-spacing: 2px;">SLIDE ROULETTE</h1>
         <div id="ton-connect-btn"></div>
     </div>
 
@@ -39,7 +41,7 @@
             <div class="balance"><span id="u-bal">0.00</span> TON</div>
         </div>
 
-        <div id="bank-display" class="bank">0.00 TON</div>
+        <div class="bank" id="bank-val">0.00 TON</div>
         <div id="status" style="text-align: center; color: #555; font-weight: bold;">ОЖИДАНИЕ ИГРОКОВ...</div>
 
         <div class="controls">
@@ -47,8 +49,6 @@
             <button class="btn btn-gold" onclick="sendBet()">СДЕЛАТЬ СТАВКУ</button>
             <button class="btn btn-dark" onclick="withdraw()">ВЫВЕСТИ TON</button>
         </div>
-
-        <div style="text-align: center; color: #00ff00; font-size: 13px; font-weight: bold;" id="daily-inc"></div>
 
         <div id="inv-list" class="inv-grid"></div>
     </div>
@@ -58,9 +58,9 @@
         const socket = io();
         tg.expand();
 
-        // 1. Инициализация TonConnect (Манифест обязателен)
+        // ИСПРАВЛЕННЫЙ МАНИФЕСТ: Берем файл прямо с нашего сервера
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-            manifestUrl: 'https://raw.githubusercontent.com/ton-community/tutorials/main/03-client/unprotected/public/tonconnect-manifest.json',
+            manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-btn'
         });
 
@@ -70,32 +70,29 @@
                 document.getElementById('main-ui').style.display = 'flex';
                 const addr = wallet.account.address;
                 document.getElementById('wallet-addr').innerText = addr.slice(0,6)+'...'+addr.slice(-4);
-                socket.emit('auth', { wallet: addr, username: tg.initDataUnsafe.user?.first_name });
+                socket.emit('auth', { 
+                    wallet: addr, 
+                    username: tg.initDataUnsafe.user?.first_name 
+                });
             }
         });
 
         socket.on('updateUserData', d => {
             document.getElementById('u-bal').innerText = d.balance.toFixed(2);
-            let daily = 0;
-            d.inventory.forEach(i => { if(i.isStaked) daily += i.price * 0.001; });
-            document.getElementById('daily-inc').innerText = daily > 0 ? `Доход: +${daily.toFixed(4)} TON / день` : "";
-
-            document.getElementById('inv-list').innerHTML = d.inventory.map(i => `
+            document.getElementById('inv-list').innerHTML = (d.inventory || []).map(i => `
                 <div class="inv-card">
-                    ${i.isStaked ? '<span class="stake-badge">FARMING</span>' : ''}
                     <img src="${i.image}" style="width: 60px; height: 60px; border-radius: 10px;">
                     <div style="font-size: 11px; margin: 5px 0;">${i.name}</div>
-                    <button onclick="socket.emit('toggleStake', '${i.itemId}')" style="width:100%; border:none; padding:5px; border-radius:8px; background:${i.isStaked ? '#ff3b30' : '#007bff'}; color:white; font-size:10px; cursor:pointer;">
+                    <button onclick="socket.emit('toggleStake', '${i.itemId}')" style="width:100%; border:none; padding:5px; border-radius:8px; background:${i.isStaked ? 'red' : 'green'}; color:white; font-size:10px;">
                         ${i.isStaked ? 'СНЯТЬ' : 'СТЕЙКИНГ'}
                     </button>
                 </div>
             `).join('');
         });
 
-        socket.on('sync', d => { document.getElementById('bank-display').innerText = d.bank.toFixed(2) + " TON"; });
+        socket.on('sync', d => { document.getElementById('bank-val').innerText = d.bank.toFixed(2) + " TON"; });
         socket.on('timer', t => { document.getElementById('status').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
         socket.on('winnerUpdate', d => { tg.showAlert(`ПОБЕДИТЕЛЬ: ${d.winner.name}\nВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`); });
-        socket.on('msg', m => tg.showAlert(m));
 
         function sendBet() {
             const bet = parseFloat(document.getElementById('bet-amt').value);
