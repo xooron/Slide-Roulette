@@ -34,15 +34,16 @@
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; cursor: pointer; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 10px; gap: 4px; cursor: pointer; }
         .nav-btn.active { color: var(--star); }
-        .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
+        .nav-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
 
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; }
         .modal-content { background: #111; width: 90%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
         
-        input[type="number"] { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; font-size: 16px; margin-bottom: 10px; text-align: center; }
+        input[type="number"], input[type="text"] { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; font-size: 16px; margin-bottom: 10px; text-align: center; }
         .btn-gold { width: 100%; background: var(--gold); border: none; padding: 15px; border-radius: 12px; font-weight: bold; color: black; cursor: pointer; }
+        .ref-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; margin-top: 15px; border: 1px dashed var(--star); }
     </style>
 </head>
 <body>
@@ -76,10 +77,25 @@
         <div style="padding: 30px; text-align:center;">
             <img id="p-ava" src="" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:15px;">
             <h2 id="p-name">...</h2>
-            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:20px; border: 1px solid rgba(255,207,51,0.1);">
+            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:10px; border: 1px solid rgba(255,207,51,0.1);">
                 <div style="font-size:32px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
             </div>
             <button class="btn-gold" onclick="withdraw()">ВЫВЕСТИ TON</button>
+
+            <div class="ref-box">
+                <div style="color:var(--hint); font-size:12px; margin-bottom:5px;">РЕФЕРАЛЬНЫЙ БАЛАНС</div>
+                <div style="font-size:20px; font-weight:bold; color:var(--star); margin-bottom:10px;"><span id="p-ref-bal">0.00</span> TON</div>
+                <button class="btn-gold" style="padding:10px; font-size:12px;" onclick="copyRefLink()">КОПИРОВАТЬ ССЫЛКУ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-page" class="page">
+        <div style="padding: 30px; text-align:center;">
+            <h2 style="color:var(--star)">АДМИН ПАНЕЛЬ</h2>
+            <input type="text" id="admin-user" placeholder="Username (без @)">
+            <input type="number" id="admin-amount" placeholder="Сумма TON">
+            <button class="btn-gold" onclick="adminGiveBalance()">ВЫДАТЬ БАЛАНС</button>
         </div>
     </div>
 
@@ -105,11 +121,20 @@
             <svg viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span>Профиль</span>
         </div>
+        <div class="nav-btn" onclick="window.open('https://t.me/maesexs', '_blank')">
+            <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 11-7.6-10.6 8.38 8.38 0 013.8.9L21 3.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Поддержка</span>
+        </div>
+        <div id="admin-nav" class="nav-btn" style="display:none;" onclick="switchTab('admin', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.62 2.48A2 2 0 004.56 21h14.88a2 2 0 001.94-1.52L22 17" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Админ</span>
+        </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
+        let myId = "";
 
         const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
 
@@ -130,16 +155,33 @@
                 username: tg.initDataUnsafe.user?.username,
                 name: tg.initDataUnsafe.user?.first_name,
                 photo: tg.initDataUnsafe.user?.photo_url,
-                wallet: addr
+                wallet: addr,
+                ref: new URLSearchParams(window.location.search).get('startapp')
             });
         });
 
         socket.on('updateUserData', d => {
+            myId = d.userId;
             document.getElementById('bal-game').innerText = d.balance.toFixed(2);
             document.getElementById('p-bal').innerText = d.balance.toFixed(2);
+            document.getElementById('p-ref-bal').innerText = (d.refBalance || 0).toFixed(2);
             document.getElementById('p-name').innerText = d.name;
             document.getElementById('p-ava').src = getAva(d.photo, d.name);
+            if(d.username === 'maesexs') document.getElementById('admin-nav').style.display = 'flex';
         });
+
+        function copyRefLink() {
+            const link = `https://t.me/slideroulettebot/app?startapp=${myId}`;
+            navigator.clipboard.writeText(link);
+            tg.showAlert("Ссылка скопирована!");
+        }
+
+        function adminGiveBalance() {
+            const user = document.getElementById('admin-user').value;
+            const amt = document.getElementById('admin-amount').value;
+            socket.emit('adminAction', { type: 'give', target: user, amount: amt });
+            tg.showAlert("Запрос отправлен");
+        }
 
         socket.on('sync', data => {
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
@@ -209,13 +251,12 @@
                     tg.showAlert("Успешно пополнено!");
                 }
             } catch (e) { 
-                tg.showAlert("Ошибка или отмена оплаты"); 
+                tg.showAlert("У вас недостаточно средств или перейдите в кошелек для подтверждения оплаты"); 
             }
         }
 
         function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
-        // ИЗМЕНЕНО: Мин 5 TON
-        function withdraw() { let a = prompt("Сумма вывода (мин 5 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        function withdraw() { let a = prompt("Сумма вывода (мин 5 TON, комиссия 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function switchTab(t, el) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
