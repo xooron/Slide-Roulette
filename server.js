@@ -64,7 +64,10 @@ io.on('connection', (socket) => {
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const amt = parseFloat(data.bet);
-        if (isNaN(amt) || amt <= 0) return;
+        
+        // Минимум 0.01 TON
+        if (isNaN(amt) || amt < 0.01) return;
+        
         const user = await User.findOne({ userId: socket.userId });
         if (user && user.balance >= amt) {
             user.balance -= amt; await user.save();
