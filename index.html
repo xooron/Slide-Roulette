@@ -26,11 +26,11 @@
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
-        .slow-drift { animation: driftAnim 15s linear infinite; width: max-content; }
+        .slow-drift { animation: driftAnim 18s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         
-        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 4px; background: var(--glass); border-radius: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
-        .segment img { width: 100%; height: 100%; object-fit: cover; }
+        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; background: #1c1c1e; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .segment img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
@@ -38,15 +38,16 @@
         .nav-btn.active { color: var(--star); }
         .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
 
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
-        .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); position: relative; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; font-weight: bold; }
+        .btn-gold { width: 100%; background: var(--gold); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; margin-top: 5px; }
         
-        input[type="number"], input[type="text"] { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 15px; border-radius: 12px; font-size: 16px; margin-bottom: 10px; text-align: center; }
-        .btn-gold { width: 100%; background: var(--gold); border: none; padding: 15px; border-radius: 12px; font-weight: bold; color: black; cursor: pointer; margin-top: 5px; }
-        
-        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 25px; border-radius: 25px 25px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; }
+        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 30px; border-radius: 30px 30px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
         #winner-popup.show { bottom: 0; }
-        .close-win { position: absolute; right: 20px; top: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-win { position: absolute; right: 20px; top: 15px; font-size: 32px; font-weight: bold; opacity: 0.5; }
+
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
+        .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
     </style>
 </head>
 <body>
@@ -57,61 +58,61 @@
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div class="bank-val" id="bank-val">0.00 TON</div>
-        <div id="timer-label" style="text-align:center; font-weight:bold; color:var(--hint); font-size:10px;">ОЖИДАЕМ ИГРОКОВ...</div>
+        <div id="timer-label" style="text-align:center; font-weight:bold; color:var(--hint); font-size:11px; letter-spacing: 1px;">ОЖИДАЕМ ИГРОКОВ...</div>
         <div class="roulette-wrap">
             <div class="pointer"></div>
             <div id="tape" class="tape slow-drift"></div>
         </div>
         <div style="padding: 16px; display:flex; gap:10px;">
-            <input type="number" id="bet-input" value="1" step="0.1">
-            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 25px; border-radius:12px; font-weight:bold; color:black; height:52px;">СТАВКА</button>
+            <input type="number" id="bet-input" value="1.0" step="0.1" inputmode="decimal">
+            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
         </div>
         <div id="players-list"></div>
     </div>
 
     <div id="shop-page" class="page">
-        <div style="padding: 50px 20px; text-align:center;">
+        <div style="padding: 100px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
-            <p style="color:var(--hint)">Скоро открытие...</p>
+            <p style="color:var(--hint)">Раздел пополнится в следующем обновлении</p>
         </div>
     </div>
 
     <div id="profile-page" class="page">
         <div style="padding: 30px; text-align:center;">
-            <img id="p-ava" src="" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:15px;">
-            <h2 id="p-name">...</h2>
-            <div style="background:var(--glass); padding:20px; border-radius:20px; margin-bottom:15px; border: 1px solid rgba(255,207,51,0.1);">
-                <div style="font-size:32px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
+            <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:4px solid var(--star); object-fit:cover; margin-bottom:15px;" onerror="fixImg(this)">
+            <h2 id="p-name" style="margin-bottom:20px;">...</h2>
+            <div style="background:var(--glass); padding:25px; border-radius:24px; margin-bottom:20px; border: 1px solid rgba(255,207,51,0.15);">
+                <div style="font-size:36px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
             </div>
             <button class="btn-gold" onclick="withdraw()">ВЫВЕСТИ TON</button>
-            <button class="btn-gold" style="background: #222; color: #fff; margin-top: 10px;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-bal">0.00</span> TON)</button>
-            <button class="btn-gold" style="background: #0088cc; color: #fff; margin-top: 10px;" onclick="window.open('https://t.me/maesexs', '_blank')">ПОДДЕРЖКА</button>
+            <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-bal">0.00</span> TON)</button>
+            <button class="btn-gold" style="background: #0088cc; color: #fff;" onclick="window.open('https://t.me/maesexs', '_blank')">ПОДДЕРЖКА</button>
         </div>
     </div>
 
     <div id="admin-page" class="page">
         <div style="padding: 30px; text-align:center;">
-            <h2 style="color:var(--star)">АДМИН ПАНЕЛЬ</h2>
-            <input type="text" id="admin-user" placeholder="Юзернейм">
-            <input type="number" id="admin-amt" placeholder="Сумма">
-            <button class="btn-gold" onclick="adminGive()">ВЫДАТЬ TON</button>
+            <h2 style="color:var(--star)">АДМИН-ЦЕНТР</h2>
+            <input type="text" id="admin-user" placeholder="@username">
+            <input type="number" id="admin-amt" placeholder="Сумма TON">
+            <button class="btn-gold" onclick="adminGive()">НАЧИСЛИТЬ</button>
         </div>
     </div>
 
     <div id="winner-popup">
         <div class="close-win" onclick="this.parentElement.classList.remove('show')">×</div>
-        <div style="font-size: 14px; font-weight: bold; opacity: 0.8;">ПОБЕДИТЕЛЬ!</div>
-        <div id="win-name" style="font-size: 26px; font-weight: 900; margin: 5px 0;">...</div>
-        <div id="win-amt" style="font-size: 20px; font-weight: 800; color: #000;">+ 0.00 TON</div>
-        <div id="win-multiplier" style="font-size: 18px; font-weight: bold; margin-top: 5px; color: #000; background: rgba(0,0,0,0.1); display: inline-block; padding: 2px 10px; border-radius: 10px;">x0.0</div>
+        <div style="font-size: 14px; font-weight: 800; opacity: 0.7; letter-spacing: 2px;">ПОБЕДИТЕЛЬ</div>
+        <div id="win-name" style="font-size: 28px; font-weight: 900; margin: 8px 0;">...</div>
+        <div id="win-amt" style="font-size: 22px; font-weight: 800; color: #000;">+ 0.00 TON</div>
+        <div id="win-multiplier" style="font-size: 18px; font-weight: 900; margin-top: 10px; color: #fff; background: #000; display: inline-block; padding: 4px 15px; border-radius: 12px;">x0.0</div>
     </div>
 
     <div id="buy-modal" class="modal">
         <div class="modal-content">
-            <h3 style="margin-top:0">Пополнение</h3>
-            <input type="number" id="dep-amt" placeholder="Сумма TON" value="1">
-            <button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ</button>
-            <button onclick="closeModal('buy-modal')" style="margin-top:15px; background:none; border:none; color:gray;">Отмена</button>
+            <h3 style="margin-top:0; color:var(--star)">Пополнение баланса</h3>
+            <input type="number" id="dep-amt" placeholder="1.0" value="1.0">
+            <button class="btn-gold" onclick="payTON()">КУПИТЬ</button>
+            <button onclick="closeModal('buy-modal')" style="margin-top:15px; background:none; border:none; color:gray; font-weight:bold;">ЗАКРЫТЬ</button>
         </div>
     </div>
 
@@ -145,8 +146,14 @@
             buttonRootId: 'ton-connect-btn'
         });
 
+        function fixImg(el) {
+            const name = el.getAttribute('data-name') || 'P';
+            el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=128`;
+            el.onerror = null;
+        }
+
         function getAva(url, name) { 
-            if (url && url.length > 5) return url;
+            if (url && url.length > 15) return url;
             return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'P')}&background=random&color=fff&size=128`; 
         }
 
@@ -165,7 +172,9 @@
             document.getElementById('p-bal').innerText = d.balance.toFixed(2);
             document.getElementById('p-ref-bal').innerText = (d.refBalance || 0).toFixed(2);
             document.getElementById('p-name').innerText = d.name;
-            document.getElementById('p-ava').src = getAva(d.photo, d.name);
+            const ava = document.getElementById('p-ava');
+            ava.setAttribute('data-name', d.name);
+            ava.src = getAva(d.photo, d.name);
             if(d.username === 'maesexs') document.getElementById('admin-nav').style.display = 'flex';
         });
 
@@ -174,16 +183,16 @@
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
-                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}" onerror="this.src='https://ui-avatars.com/api/?name=P'"></div>`).join('');
+                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}" data-name="${p.name}" onerror="fixImg(this)"></div>`).join('');
                     tape.innerHTML = items.repeat(40);
                 } else {
-                    tape.innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
+                    tape.innerHTML = '<div class="segment" style="opacity:0.3"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
                 }
                 tape.classList.add('slow-drift');
             }
             document.getElementById('players-list').innerHTML = data.players.map(p => `
                 <div class="player-row">
-                    <img src="${getAva(p.photo, p.name)}" style="width:36px; height:36px; border-radius:50%; margin-right:12px;">
+                    <img src="${getAva(p.photo, p.name)}" data-name="${p.name}" onerror="fixImg(this)" style="width:38px; height:38px; border-radius:50%; margin-right:12px; object-fit:cover;">
                     <div><b>${p.name}</b><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
                     <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)} TON</div>
                 </div>`).join('');
@@ -195,8 +204,8 @@
             tape.classList.remove('slow-drift'); 
             tape.style.transition = 'none'; 
             tape.style.transform = 'translateX(0)';
-            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}" onerror="this.src='https://ui-avatars.com/api/?name=P'"></div>`).join('');
-            const offset = (85 * 88) - (window.innerWidth / 2) + 44;
+            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}" onerror="fixImg(this)"></div>`).join('');
+            const offset = (85 * 90) - (window.innerWidth / 2) + 45;
             setTimeout(() => { 
                 tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; 
                 tape.style.transform = `translateX(-${offset}px)`; 
@@ -216,7 +225,7 @@
                 const t = document.getElementById('tape');
                 t.style.transition = 'none'; 
                 t.style.transform = 'translateX(0)';
-                t.innerHTML = '<div class="segment" style="opacity:0.2"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
+                t.innerHTML = '<div class="segment" style="opacity:0.3"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
                 t.classList.add('slow-drift'); 
             }, 6000);
         });
@@ -231,12 +240,8 @@
                 const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
                 const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
                 const result = await tonConnectUI.sendTransaction(transaction);
-                if (result) { 
-                    socket.emit('depositConfirmed', amt); 
-                    closeModal('buy-modal'); 
-                    tg.showAlert(`Запрос на пополнение ${amt} TON отправлен!`); 
-                }
-            } catch (e) { tg.showAlert("Ошибка оплаты"); }
+                if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); tg.showAlert("Запрос на оплату отправлен!"); }
+            } catch (e) { tg.showAlert("Ошибка!"); }
         }
 
         function makeBet() { 
@@ -244,7 +249,7 @@
             if(!val || isNaN(parseFloat(val))) return;
             socket.emit('makeBet', { bet: val, photo: tg.initDataUnsafe.user?.photo_url }); 
         }
-        function withdraw() { let a = prompt("Вывод (мин 5 TON, комиссия 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        function withdraw() { let a = prompt("Сумма (мин 5 TON, ком. 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function copyRefLink() {
             const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; 
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
@@ -266,4 +271,3 @@
     </script>
 </body>
 </html>
-
