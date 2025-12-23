@@ -12,6 +12,7 @@
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
+        #auth-screen { position: fixed; inset: 0; background: var(--tg-bg); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
@@ -20,7 +21,7 @@
         .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; }
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
-        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; }
+        .roulette-wrap { position: relative; width: 100%; height: 90px; background: rgba(255,255,255,0.02); margin: 10px 0; overflow: hidden; display: flex; align-items: center; border-y: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         
         .tape { display: flex; height: 100%; align-items: center; will-change: transform; transition: none; }
@@ -35,15 +36,25 @@
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; }
         .nav-btn.active { color: var(--star); }
 
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 16px; }
+        .profile-card { background: var(--glass); padding: 15px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+        .profile-card b { font-size: 20px; display: block; color: var(--star); }
+
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; }
-        .modal-content { background: #111; width: 90%; max-width: 320px; border-radius: 24px; padding: 20px; text-align: center; border: 1px solid var(--star); }
+        .modal-content { background: #111; width: 90%; max-width: 340px; border-radius: 24px; padding: 20px; text-align: center; border: 1px solid var(--star); }
     </style>
 </head>
 <body>
 
+    <div id="auth-screen">
+        <h1 style="background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 40px; margin: 0;">ROULETTE PRO</h1>
+        <p style="color: var(--hint); margin-bottom: 30px;">ПОДКЛЮЧИТЕ КОШЕЛЕК</p>
+        <div id="ton-connect-btn"></div>
+    </div>
+
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div id="ton-connect-btn"></div>
+            <div style="font-size: 12px;">Online: <b id="online-count" style="color:#0ff">0</b></div>
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -62,31 +73,41 @@
     <div id="shop-page" class="page">
         <div style="padding: 50px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
-            <p style="color:var(--hint)">Здесь пока ничего нет...</p>
+            <p style="color:var(--hint)">Здесь пусто. Пополняйте баланс через «+» в углу.</p>
         </div>
     </div>
 
     <div id="profile-page" class="page">
-        <div style="padding: 30px; text-align:center;">
-            <img id="p-ava" src="" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:15px;">
+        <div style="padding: 20px; text-align:center;">
+            <img id="p-ava" src="" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--star); object-fit:cover; margin-bottom:10px;">
             <h2 id="p-name">...</h2>
-            <div style="background:var(--glass); padding:20px; border-radius:20px; border:1px solid rgba(255,207,51,0.2);">
-                <span style="color:var(--hint); font-size:12px;">ВАШ БАЛАНС</span>
-                <div style="font-size:32px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
-            </div>
-            <button onclick="withdraw()" style="width:100%; margin-top:20px; padding:15px; background:var(--glass); color:white; border-radius:15px; border:1px solid #333;">ВЫВЕСТИ TON</button>
+        </div>
+        <div class="profile-grid">
+            <div class="profile-card"><b id="p-bal">0</b><span>Баланс TON</span></div>
+            <div class="profile-card"><b id="p-daily" style="color:#00ff00">+0.00</b><span>В день</span></div>
+            <div class="profile-card"><b id="p-staked">0</b><span>Нафармлено</span></div>
+            <div class="profile-card"><b id="p-refs">0</b><span>Рефералы</span></div>
+        </div>
+        <button onclick="switchTab('inventory')" style="width:calc(100% - 32px); margin:16px; padding:15px; background:var(--glass); border:1px solid var(--star); color:white; border-radius:12px; font-weight:bold;">ОТКРЫТЬ ИНВЕНТАРЬ</button>
+        <button onclick="withdraw()" style="width:calc(100% - 32px); margin:0 16px; padding:15px; background:#222; color:white; border:none; border-radius:12px; font-weight:bold;">ВЫВЕСТИ TON</button>
+    </div>
+
+    <div id="inventory-page" class="page">
+        <div style="padding: 20px;">
+            <h2 style="text-align:center;">Инвентарь</h2>
+            <div id="inv-list" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"></div>
+            <button onclick="switchTab('profile')" style="width:100%; margin-top:20px; padding:15px; background:none; border:none; color:var(--hint);">Назад</button>
         </div>
     </div>
 
     <div id="buy-modal" class="modal">
         <div class="modal-content">
-            <h3>Купить TON за Звезды</h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <button class="chip" onclick="pay(50)">1 TON (50⭐)</button>
-                <button class="chip" onclick="pay(250)">5 TON (250⭐)</button>
-                <button class="chip" onclick="pay(500)">10 TON (500⭐)</button>
-                <button class="chip" onclick="pay(2500)">50 TON (2500⭐)</button>
+            <h3>Пополнение</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                <button class="chip" style="justify-content:center" onclick="payStars(50)">50 ⭐ (1 TON)</button>
+                <button class="chip" style="justify-content:center" onclick="payStars(250)">250 ⭐ (5 TON)</button>
             </div>
+            <button onclick="payTON(1)" style="width:100%; padding:15px; background:var(--gold); border:none; border-radius:12px; font-weight:bold; color:black;">ОПЛАТИТЬ 1 TON (Wallet)</button>
             <button onclick="closeModal('buy-modal')" style="margin-top:20px; background:none; border:none; color:gray;">Отмена</button>
         </div>
     </div>
@@ -100,6 +121,7 @@
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
+        const ADMIN_ADDR = "ВАШ_ТОН_АДРЕС_ДЛЯ_ПРИЕМА";
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
@@ -112,13 +134,16 @@
         }
 
         tonConnectUI.onStatusChange(wallet => {
-            socket.emit('auth', { 
-                id: tg.initDataUnsafe.user?.id, 
-                username: tg.initDataUnsafe.user?.username,
-                name: tg.initDataUnsafe.user?.first_name,
-                photo: tg.initDataUnsafe.user?.photo_url,
-                wallet: wallet ? wallet.account.address : null
-            });
+            if (wallet) {
+                document.getElementById('auth-screen').style.display = 'none';
+                socket.emit('auth', { 
+                    wallet: wallet.account.address, 
+                    id: tg.initDataUnsafe.user?.id,
+                    username: tg.initDataUnsafe.user?.username,
+                    name: tg.initDataUnsafe.user?.first_name,
+                    photo: tg.initDataUnsafe.user?.photo_url
+                });
+            }
         });
 
         socket.on('updateUserData', d => {
@@ -126,16 +151,27 @@
             document.getElementById('p-bal').innerText = d.balance.toFixed(2);
             document.getElementById('p-name').innerText = d.name;
             document.getElementById('p-ava').src = getAva(d.photo, d.name);
+            document.getElementById('p-staked').innerText = d.totalFarmed.toFixed(4);
+            document.getElementById('p-refs').innerText = d.referralsCount || 0;
+            let daily = 0; d.inventory.forEach(i => { if(i.isStaked) daily += i.price * 0.001 });
+            document.getElementById('p-daily').innerText = "+" + daily.toFixed(4);
+            document.getElementById('inv-list').innerHTML = d.inventory.map(i => `
+                <div style="background:var(--glass); padding:10px; border-radius:10px; text-align:center; border:1px solid rgba(255,255,255,0.05);">
+                    <img src="${i.image}" style="width:60px; height:60px; border-radius:10px;">
+                    <div style="font-size:10px;">${i.name}</div>
+                    <button onclick="socket.emit('toggleStake', '${i.itemId}')" style="width:100%; font-size:9px; background:${i.isStaked?'#ff3b30':'#007bff'}; border:none; color:white; padding:5px; border-radius:5px;">${i.isStaked?'СНЯТЬ':'СТЕЙКИНГ'}</button>
+                </div>`).join('');
         });
 
         socket.on('sync', data => {
+            document.getElementById('online-count').innerText = data.onlineCount || 0;
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
                     tape.innerHTML = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('').repeat(15);
                 } else {
-                    tape.innerHTML = '<div class="segment" style="opacity:0.1">?</div>'.repeat(40);
+                    tape.innerHTML = '<div class="segment" style="opacity:0.2">?</div>'.repeat(40);
                 }
                 document.getElementById('players-list').innerHTML = data.players.map(p => `
                     <div class="player-row">
@@ -157,32 +193,31 @@
 
         socket.on('winnerUpdate', d => {
             tg.showAlert(`ПОБЕДИТЕЛЬ: ${d.winner.name}\nВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`);
-            setTimeout(() => { 
-                isSpinningLocal = false; 
-                const t = document.getElementById('tape');
-                t.style.transition = 'none'; t.style.transform = 'translateX(0)'; t.classList.add('slow-drift');
-            }, 2000);
+            setTimeout(() => { isSpinningLocal = false; const t = document.getElementById('tape'); t.style.transition = 'none'; t.style.transform = 'translateX(0)'; t.classList.add('slow-drift'); }, 2000);
         });
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
 
-        function makeBet() {
-            socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url });
+        async function payTON(amt) {
+            const tx = {
+                validUntil: Math.floor(Date.now() / 1000) + 600,
+                messages: [{ address: ADMIN_ADDR, amount: (amt * 1e9).toString() }]
+            };
+            try {
+                const result = await tonConnectUI.sendTransaction(tx);
+                if (result) socket.emit('depositConfirmed', { amount: amt });
+            } catch (e) { tg.showAlert("Ошибка оплаты"); }
         }
 
-        function withdraw() {
-            const amt = prompt("Введите сумму вывода (мин. 1 TON):");
-            if (amt) socket.emit('requestWithdraw', { amount: amt });
-        }
-
+        function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
+        function withdraw() { let a = prompt("Сумма вывода (мин 1 TON):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function switchTab(t, el) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
         }
-
-        function pay(s) { socket.emit('createInvoice', s); }
+        function payStars(s) { socket.emit('createInvoice', s); }
         socket.on('invoiceLink', d => tg.openInvoice(d.url));
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
