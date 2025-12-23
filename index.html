@@ -12,14 +12,15 @@
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
+        #auth-screen { position: fixed; inset: 0; background: var(--tg-bg); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
         .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        #ton-connect-btn { scale: 0.8; transform-origin: left; margin-right: auto; }
+        #ton-connect-btn { scale: 0.8; transform-origin: left; }
         
-        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; margin-left: 8px; }
-        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; }
+        .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; margin-left: auto; }
+        .btn-plus { background: var(--gold); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; }
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
         .roulette-wrap { position: relative; width: 100%; height: 95px; background: rgba(255,255,255,0.02); margin: 15px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -34,8 +35,9 @@
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; }
         .nav-btn.active { color: var(--star); }
+        .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
 
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; }
         .modal-content { background: #111; width: 90%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
@@ -46,10 +48,14 @@
 </head>
 <body>
 
+    <div id="auth-screen">
+        <h1 style="background: var(--gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 40px; margin-bottom: 30px;">ROULETTE PRO</h1>
+        <div id="ton-connect-btn"></div>
+    </div>
+
     <div id="game-page" class="page active">
         <div class="top-nav">
-            <div id="ton-connect-btn"></div>
-            <div style="font-size: 10px; color: var(--hint);">Online: <b id="online-count" style="color:#0ff">0</b></div>
+            <div id="ton-connect-btn-header"></div>
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -85,31 +91,35 @@
 
     <div id="buy-modal" class="modal">
         <div class="modal-content">
-            <h3 style="margin-top:0">Пополнение</h3>
+            <h3 style="margin-top:0">Пополнение TON</h3>
             <input type="number" id="dep-amt" placeholder="Сумма TON" value="1">
-            <button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ TON</button>
-            <div style="margin: 15px 0; font-size: 10px; color: #555;">ИЛИ ЧЕРЕЗ ЗВЕЗДЫ</div>
-            <button class="btn-gold" style="background:#222; color:white;" onclick="socket.emit('createInvoice', 50)">50 ⭐ (1 TON)</button>
+            <button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ</button>
             <button onclick="closeModal('buy-modal')" style="margin-top:20px; background:none; border:none; color:gray;">Отмена</button>
         </div>
     </div>
 
     <div class="nav">
-        <div class="nav-btn active" onclick="switchTab('game', this)"><span>Игра</span></div>
-        <div class="nav-btn" onclick="switchTab('shop', this)"><span>Магазин</span></div>
-        <div class="nav-btn" onclick="switchTab('profile', this)"><span>Профиль</span></div>
+        <div class="nav-btn active" onclick="switchTab('game', this)"><svg viewBox="0 0 24 24"><path d="M6 12h4m-2-2v4m5-2h.01m2.99 0h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Игра</span></div>
+        <div class="nav-btn" onclick="switchTab('shop', this)"><svg viewBox="0 0 24 24"><path d="M3 9h18v10a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm3 0V7a6 6 0 1112 0v2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Магазин</span></div>
+        <div class="nav-btn" onclick="switchTab('profile', this)"><svg viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Профиль</span></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
 
-        // ВАЖНО: ВСТАВЬТЕ СЮДА ВАШ АДРЕС ДЛЯ ПРИЕМА ТОНОВ
-        const MY_TON_ADDRESS = "ВАШ_АДРЕС_КОШЕЛЬКА"; 
+        // ВАЖНО: ВСТАВЬТЕ ВАШ АДРЕС СЮДА
+        const MY_TON_ADDRESS = "ВАШ_ТОН_АДРЕС"; 
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-btn'
+        });
+
+        // Вторая точка для кнопки в хедере
+        const headerConnect = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: window.location.origin + '/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect-btn-header'
         });
 
         function getAva(url, name) { 
@@ -118,14 +128,16 @@
         }
 
         tonConnectUI.onStatusChange(wallet => {
-            const addr = wallet ? wallet.account.address : null;
-            socket.emit('auth', { 
-                id: tg.initDataUnsafe.user?.id, 
-                username: tg.initDataUnsafe.user?.username,
-                name: tg.initDataUnsafe.user?.first_name,
-                photo: tg.initDataUnsafe.user?.photo_url,
-                wallet: addr
-            });
+            if (wallet) {
+                document.getElementById('auth-screen').style.display = 'none';
+                socket.emit('auth', { 
+                    id: tg.initDataUnsafe.user?.id, 
+                    username: tg.initDataUnsafe.user?.username,
+                    name: tg.initDataUnsafe.user?.first_name,
+                    photo: tg.initDataUnsafe.user?.photo_url,
+                    wallet: wallet.account.address
+                });
+            }
         });
 
         socket.on('updateUserData', d => {
@@ -136,15 +148,16 @@
         });
 
         socket.on('sync', data => {
-            document.getElementById('online-count').innerText = data.onlineCount || 0;
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
                     const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('');
                     tape.innerHTML = items.repeat(15);
+                    tape.classList.add('slow-drift');
                 } else {
                     tape.innerHTML = '<div class="segment" style="opacity:0.2">?</div>'.repeat(40);
+                    tape.classList.add('slow-drift');
                 }
             }
             document.getElementById('players-list').innerHTML = data.players.map(p => `
@@ -158,15 +171,26 @@
         socket.on('startSpin', (data) => {
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
-            tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
+            tape.classList.remove('slow-drift'); 
+            tape.style.transition = 'none'; 
+            tape.style.transform = 'translateX(0)';
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
             const offset = (85 * 88) - (window.innerWidth / 2) + 44;
-            setTimeout(() => { tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; tape.style.transform = `translateX(-${offset}px)`; }, 50);
+            setTimeout(() => { 
+                tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; 
+                tape.style.transform = `translateX(-${offset}px)`; 
+            }, 50);
         });
 
         socket.on('winnerUpdate', d => {
             tg.showAlert(`ПОБЕДИТЕЛЬ: ${d.winner.name}\nВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`);
-            setTimeout(() => { isSpinningLocal = false; document.getElementById('tape').classList.add('slow-drift'); }, 2000);
+            setTimeout(() => { 
+                isSpinningLocal = false; 
+                const t = document.getElementById('tape');
+                t.style.transition = 'none'; 
+                t.style.transform = 'translateX(0)';
+                t.classList.add('slow-drift'); 
+            }, 2000);
         });
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
@@ -174,15 +198,26 @@
         async function payTON() {
             const amt = parseFloat(document.getElementById('dep-amt').value);
             if(isNaN(amt) || amt <= 0) return;
-            if(!tonConnectUI.account) return tg.showAlert("Сначала подключите кошелек!");
+            if(!tonConnectUI.account) return tg.showAlert("Подключите кошелек!");
 
             try {
-                const result = await tonConnectUI.sendTransaction({
+                const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
-                    messages: [{ address: MY_TON_ADDRESS, amount: (amt * 1000000000).toString() }]
-                });
-                if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); tg.showAlert("Оплата принята!"); }
-            } catch (e) { tg.showAlert("Ошибка или отмена оплаты"); }
+                    messages: [{
+                        address: MY_TON_ADDRESS,
+                        amount: (amt * 1000000000).toString()
+                    }]
+                };
+                const result = await tonConnectUI.sendTransaction(transaction);
+                if (result) {
+                    socket.emit('depositConfirmed', amt);
+                    closeModal('buy-modal');
+                    tg.showAlert("Оплата принята!");
+                }
+            } catch (e) { 
+                tg.showAlert("Ошибка или отмена оплаты"); 
+                console.error(e);
+            }
         }
 
         function makeBet() { socket.emit('makeBet', { bet: document.getElementById('bet-input').value, photo: tg.initDataUnsafe.user?.photo_url }); }
@@ -193,7 +228,6 @@
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
         }
-        socket.on('invoiceLink', d => tg.openInvoice(d.url));
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
