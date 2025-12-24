@@ -10,14 +10,15 @@
     <style>
         :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); --red: #ff4444; --black: #2c2c2e; --yellow: #ffcf33; }
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
-        body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Вернул шрифт как был */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
         .game-selection { padding: 20px; display: flex; flex-direction: column; gap: 15px; justify-content: center; height: 100%; }
         .game-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: center; cursor: pointer; transition: 0.2s; }
-        .game-card:active { transform: scale(0.98); background: rgba(255,255,255,0.12); }
         .game-card h3 { margin: 0; color: var(--star); font-size: 24px; font-weight: 900; }
 
         .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -34,19 +35,18 @@
         .slow-drift { animation: driftAnim 25s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-30%); } }
         
-        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; font-weight: 900; font-size: 20px; }
+        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; font-weight: 900; font-size: 20px; background: #1c1c1e; }
         .segment img { width: 100%; height: 100%; object-fit: cover; }
 
         .seg-red { background: var(--red); color: white; }
         .seg-black { background: var(--black); color: white; }
-        .seg-yellow { background: var(--yellow); color: black; box-shadow: inset 0 0 20px rgba(0,0,0,0.3); }
+        .seg-yellow { background: var(--yellow); color: black; }
 
         .history-bar { display: flex; gap: 6px; padding: 10px 16px; overflow-x: auto; scrollbar-width: none; }
         .history-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1); }
         
         .x-bet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 16px 16px 16px; }
         .x-btn { border-radius: 14px; padding: 15px; border: 2px solid transparent; cursor: pointer; text-align: center; transition: 0.2s; opacity: 0.6; }
-        .x-btn span { display: block; font-size: 10px; opacity: 0.8; margin-top: 4px; }
         .x-btn.active { border-color: white; transform: scale(1.05); opacity: 1; }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
@@ -62,12 +62,10 @@
             position: fixed; bottom: -120%; left: 5%; width: 90%; 
             background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(20px);
             border: 2px solid var(--star); color: white; padding: 25px; 
-            border-radius: 24px; z-index: 6000; 
-            transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); 
+            border-radius: 24px; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); 
             text-align: center; box-shadow: 0 10px 50px rgba(0,0,0,1);
         }
         #winner-popup.show { bottom: 90px; }
-        .win-title { font-size: 12px; font-weight: 900; letter-spacing: 3px; color: var(--star); opacity: 0.8; margin-bottom: 10px; }
 
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
@@ -86,6 +84,7 @@
             <div class="game-card" onclick="showSubGame('x')"><h3>SLIDE X</h3></div>
         </div>
 
+        <!-- PVP VIEW -->
         <div id="pvp-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -98,6 +97,7 @@
             <div id="players-list"></div>
         </div>
 
+        <!-- X VIEW -->
         <div id="x-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="x-timer">00:15</div>
@@ -141,9 +141,9 @@
     </div>
 
     <div id="winner-popup">
-        <div class="win-title">РЕЗУЛЬТАТ РАУНДА</div>
-        <div id="win-name" style="font-size: 26px; font-weight: 900; margin-bottom: 5px;">...</div>
-        <div id="win-amt" style="font-size: 20px; font-weight: 800; color: var(--star);">...</div>
+        <div style="font-size: 12px; font-weight: 900; color: var(--star); opacity: 0.8; margin-bottom: 5px;">ПОБЕДИТЕЛЬ РАУНДА</div>
+        <div id="win-name" style="font-size: 26px; font-weight: 900;">...</div>
+        <div id="win-amt" style="font-size: 20px; font-weight: 800; color: var(--star); margin-top:5px;">...</div>
     </div>
 
     <div id="buy-modal" class="modal">
@@ -228,16 +228,23 @@
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
+                    // Аватарки на ячейки при ставке (восстановлено)
                     tape.innerHTML = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('').repeat(20);
                 } else { tape.innerHTML = '<div class="segment" style="opacity:0.1; background:#1c1c1e"></div>'.repeat(60); }
             }
-            document.getElementById('players-list').innerHTML = data.players.map(p => `<div class="player-row"><img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;"><b>${p.name}</b><div style="margin-left:auto; color:var(--star);">${p.bet.toFixed(2)}</div></div>`).join('');
+            // Шанс на выигрыш в списке (восстановлено)
+            document.getElementById('players-list').innerHTML = data.players.map(p => `
+                <div class="player-row">
+                    <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
+                    <div><b>${p.name}</b><div style="font-size:10px; color:var(--hint);">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
+                    <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)}</div>
+                </div>`).join('');
         });
 
         socket.on('syncX', data => {
             document.getElementById('x-timer').innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
+            const xTape = document.getElementById('x-tape');
             if(!isSpinningLocal) {
-                const xTape = document.getElementById('x-tape');
                 xTape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
                 xTape.classList.add('slow-drift');
             }
@@ -264,8 +271,7 @@
         });
 
         socket.on('winnerUpdate', d => {
-            const gamePage = document.getElementById('game-page');
-            if(!gamePage.classList.contains('active') || currentSubGame !== 'pvp') return;
+            if(!document.getElementById('game-page').classList.contains('active') || currentSubGame !== 'pvp') return;
             document.getElementById('win-name').innerText = d.winner.name;
             document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
             const pop = document.getElementById('winner-popup'); pop.classList.add('show');
@@ -273,8 +279,7 @@
         });
 
         socket.on('winnerUpdateX', d => {
-            const gamePage = document.getElementById('game-page');
-            if(!gamePage.classList.contains('active') || currentSubGame !== 'x') return;
+            if(!document.getElementById('game-page').classList.contains('active') || currentSubGame !== 'x') return;
             document.getElementById('win-name').innerText = d.winnerType.toUpperCase();
             document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
             const pop = document.getElementById('winner-popup'); pop.classList.add('show');
@@ -293,16 +298,15 @@
             try {
                 const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
                 const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
-                const result = await tonConnectUI.sendTransaction(transaction);
-                if (result) { socket.emit('depositConfirmed', amt); }
-            } catch(e) { console.log(e); }
+                await tonConnectUI.sendTransaction(transaction);
+                socket.emit('depositConfirmed', amt); 
+            } catch(e) {}
         }
 
         function copyRefLink() {
             const link = `https://t.me/slideroulettebot/app?startapp=${myId}`;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Скопировано!");
         }
-
         function withdraw() { let a = prompt("Сумма:"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         function adminGive() { socket.emit('adminAction', { target: document.getElementById('admin-user').value, amount: document.getElementById('admin-amt').value }); }
         function switchTab(t, el) { 
@@ -313,7 +317,6 @@
         }
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        selectXColor('black');
     </script>
 </body>
 </html>
