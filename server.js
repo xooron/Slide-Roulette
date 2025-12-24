@@ -107,7 +107,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('depositConfirmed', async (amt) => {
-        const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
+        if(!socket.userId) return;
+        const depositAmt = parseFloat(amt);
+        const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: depositAmt } }, { new: true });
+        if (user && user.referredBy) {
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
+            sendUserData(user.referredBy);
+        }
         if (user) sendUserData(socket.userId);
     });
 });
