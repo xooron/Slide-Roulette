@@ -15,6 +15,13 @@
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
+        /* Стили Меню Игры */
+        .game-selection { padding: 20px; display: flex; flex-direction: column; gap: 15px; justify-content: center; height: 100%; }
+        .game-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .game-card:active { transform: scale(0.98); background: rgba(255,255,255,0.12); }
+        .game-card h3 { margin: 0; color: var(--star); font-size: 24px; }
+        .game-card p { margin: 5px 0 0; color: var(--hint); font-size: 14px; }
+
         .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         #ton-connect-btn { scale: 0.8; transform-origin: left; }
         
@@ -57,17 +64,41 @@
             <div id="ton-connect-btn"></div>
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
-        <div class="bank-val" id="bank-val">0.00 TON</div>
-        <div id="timer-label" style="text-align:center; font-weight:bold; color:var(--hint); font-size:11px; letter-spacing: 1px;">ОЖИДАЕМ ИГРОКОВ...</div>
-        <div class="roulette-wrap">
-            <div class="pointer"></div>
-            <div id="tape" class="tape slow-drift"></div>
+
+        <!-- Вид: Меню выбора игры -->
+        <div id="game-menu-view" class="game-selection">
+            <div class="game-card" onclick="showSubGame('pvp')">
+                <h3>SLIDE PVP</h3>
+                <p>Классическая рулетка с игроками</p>
+            </div>
+            <div class="game-card" onclick="showSubGame('x')">
+                <h3>SLIDE X</h3>
+                <p>Новый режим (скоро)</p>
+            </div>
         </div>
-        <div style="padding: 16px; display:flex; gap:10px;">
-            <input type="number" id="bet-input" value="0.10" step="0.01" min="0.01" inputmode="decimal">
-            <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
+
+        <!-- Вид: PVP Рулетка -->
+        <div id="pvp-view" style="display:none; flex-direction:column;">
+            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД В МЕНЮ</div>
+            <div class="bank-val" id="bank-val">0.00 TON</div>
+            <div id="timer-label" style="text-align:center; font-weight:bold; color:var(--hint); font-size:11px; letter-spacing: 1px;">ОЖИДАЕМ ИГРОКОВ...</div>
+            <div class="roulette-wrap">
+                <div class="pointer"></div>
+                <div id="tape" class="tape slow-drift"></div>
+            </div>
+            <div style="padding: 16px; display:flex; gap:10px;">
+                <input type="number" id="bet-input" value="0.10" step="0.01" min="0.01" inputmode="decimal">
+                <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
+            </div>
+            <div id="players-list"></div>
         </div>
-        <div id="players-list"></div>
+
+        <!-- Вид: Slide X (Пусто) -->
+        <div id="x-view" style="display:none; text-align:center; padding-top:100px;">
+            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer; text-align:left;" onclick="showSubGame('menu')">← НАЗАД В МЕНЮ</div>
+            <h1 style="color:var(--hint)">ПУСТО</h1>
+            <p>Этот режим находится в разработке</p>
+        </div>
     </div>
 
     <div id="shop-page" class="page">
@@ -85,7 +116,7 @@
                 <div style="font-size:36px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
             </div>
             <button class="btn-gold" onclick="withdraw()">ВЫВЕСТИ TON</button>
-            <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-count">0</span> чел. / <span id="p-ref-bal">0.00</span> TON)</button>
+            <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-count">0</span> ПРИГЛ. / <span id="p-ref-bal">0.00</span> TON)</button>
             <button class="btn-gold" style="background: #0088cc; color: #fff;" onclick="window.open('https://t.me/maesexs', '_blank')">ПОДДЕРЖКА</button>
         </div>
     </div>
@@ -145,6 +176,12 @@
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-btn'
         });
+
+        function showSubGame(type) {
+            document.getElementById('game-menu-view').style.display = type === 'menu' ? 'flex' : 'none';
+            document.getElementById('pvp-view').style.display = type === 'pvp' ? 'flex' : 'none';
+            document.getElementById('x-view').style.display = type === 'x' ? 'block' : 'none';
+        }
 
         function fixImg(el) {
             const name = el.getAttribute('data-name') || 'P';
@@ -254,21 +291,17 @@
         function withdraw() { let a = prompt("Сумма (мин 5 TON, ком. 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         
         function copyRefLink() {
-            // Исправленная ссылка для совместимости с ПК и мобильными устройствами
-            const botUser = "slideroulettebot"; 
-            const link = `https://t.me/${botUser}/app?startapp=${myId}`; 
+            // Исправленная универсальная ссылка (для ПК и телефона)
+            const botUsername = "slideroulettebot"; 
+            const link = `https://t.me/${botUsername}/app?startapp=${myId}`; 
             
             const el = document.createElement('textarea'); 
             el.value = link; 
             document.body.appendChild(el); 
             el.select();
-            try {
-                document.execCommand('copy'); 
-                tg.showAlert("Ссылка скопирована!");
-            } catch(e) {
-                tg.showAlert("Ошибка копирования. Используйте мобильный телефон.");
-            }
-            document.body.removeChild(el);
+            document.execCommand('copy'); 
+            document.body.removeChild(el); 
+            tg.showAlert("Ссылка скопирована для ПК и Телефона!");
         }
 
         function adminGive() {
@@ -281,6 +314,7 @@
             document.getElementById(t + '-page').classList.add('active');
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
+            if(t === 'game') showSubGame('menu'); // При переходе в игру всегда открывать меню
         }
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
