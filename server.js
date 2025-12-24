@@ -97,11 +97,13 @@ io.on('connection', (socket) => {
         }
     });
 
+    // АДМИНКА (КАК БЫЛО)
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
-            const t = await User.findOneAndUpdate({ username: data.target.replace('@','') }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
-            if (t) sendUserData(t.userId);
+            const targetUsername = data.target.replace('@', '');
+            const target = await User.findOneAndUpdate({ username: targetUsername }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
+            if (target) sendUserData(target.userId);
         }
     });
 
@@ -134,7 +136,6 @@ async function runPvp() {
     }, 11000);
 }
 
-// Slide X Timer Loop
 setInterval(() => {
     if(!gameStateX.isSpinning) {
         gameStateX.timeLeft--;
@@ -149,7 +150,6 @@ async function runX() {
     let mult = winCol === 'yellow' ? 16 : 2;
     gameStateX.tapeLayout = generateXTape(winCol);
     io.emit('startSpinX', gameStateX);
-
     setTimeout(async () => {
         let adminBank = 0;
         for(let p of gameStateX.players) {
