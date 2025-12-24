@@ -10,8 +10,6 @@
     <style>
         :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); --red: #ff4444; --black: #2c2c2e; --yellow: #ffcf33; }
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
-        
-        /* Вернул шрифт как был */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
@@ -38,16 +36,21 @@
         .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; font-weight: 900; font-size: 20px; background: #1c1c1e; }
         .segment img { width: 100%; height: 100%; object-fit: cover; }
 
-        .seg-red { background: var(--red); color: white; }
-        .seg-black { background: var(--black); color: white; }
-        .seg-yellow { background: var(--yellow); color: black; }
+        /* Цвета ячеек Slide X */
+        .seg-red { background: #e03a3a; color: white; }
+        .seg-black { background: #2c2c2e; color: white; }
+        .seg-yellow { background: #b59524; color: black; }
 
         .history-bar { display: flex; gap: 6px; padding: 10px 16px; overflow-x: auto; scrollbar-width: none; }
         .history-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1); }
         
+        /* Кнопки ставок как на картинке */
         .x-bet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 16px 16px 16px; }
-        .x-btn { border-radius: 14px; padding: 15px; border: 2px solid transparent; cursor: pointer; text-align: center; transition: 0.2s; opacity: 0.6; }
-        .x-btn.active { border-color: white; transform: scale(1.05); opacity: 1; }
+        .x-btn { border-radius: 14px; padding: 15px 5px; cursor: pointer; text-align: center; font-weight: bold; font-size: 13px; color: rgba(255,255,255,0.9); border: 2px solid transparent; }
+        .x-btn.btn-black { background: #222224; }
+        .x-btn.btn-red { background: #8e2a2a; }
+        .x-btn.btn-yellow { background: #8a731d; }
+        .x-btn.active { border-color: white; transform: scale(1.05); }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
@@ -104,9 +107,9 @@
             <div class="roulette-wrap"><div class="pointer"></div><div id="x-tape" class="tape slow-drift"></div></div>
             <div class="history-bar" id="x-history"></div>
             <div class="x-bet-grid">
-                <div class="x-btn seg-black" id="btn-black" onclick="selectXColor('black')">2X<span>ЧЕРНОЕ</span></div>
-                <div class="x-btn seg-red" id="btn-red" onclick="selectXColor('red')">2X<span>КРАСНОЕ</span></div>
-                <div class="x-btn seg-yellow" id="btn-yellow" onclick="selectXColor('yellow')">16X<span>ЖЕЛТОЕ</span></div>
+                <div class="x-btn btn-black" id="btn-black" onclick="selectXColor('black')">2XЧЕРНОЕ</div>
+                <div class="x-btn btn-red" id="btn-red" onclick="selectXColor('red')">2XКРАСНОЕ</div>
+                <div class="x-btn btn-yellow" id="btn-yellow" onclick="selectXColor('yellow')">16XЖЕЛТОЕ</div>
             </div>
             <div style="padding: 0 16px; display:flex; gap:10px;">
                 <input type="number" id="x-bet-input" value="0.10" step="0.01">
@@ -116,10 +119,10 @@
         </div>
     </div>
 
+    <!-- Страницы Shop, Profile, Admin без изменений -->
     <div id="shop-page" class="page">
         <div style="padding: 100px 20px; text-align:center;"><h2 style="color:var(--star)">МАГАЗИН</h2><p style="color:var(--hint)">Раздел будет доступен в обновлении</p></div>
     </div>
-
     <div id="profile-page" class="page">
         <div style="padding: 30px; text-align:center;">
             <img id="p-ava" src="" style="width:110px; height:110px; border-radius:50%; border:4px solid var(--star); object-fit:cover; margin-bottom:15px;" onerror="fixImg(this)">
@@ -130,7 +133,6 @@
             <button class="btn-gold" style="background: #0088cc; color: #fff;" onclick="window.open('https://t.me/maesexs', '_blank')">ПОДДЕРЖКА</button>
         </div>
     </div>
-
     <div id="admin-page" class="page">
         <div style="padding: 30px; text-align:center;">
             <h2 style="color:var(--star)">АДМИН-ЦЕНТР</h2>
@@ -181,7 +183,6 @@
         let selectedXColor = 'black';
         let currentSubGame = 'menu';
 
-        const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-btn'
@@ -225,14 +226,12 @@
 
         socket.on('sync', data => {
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
+            const tape = document.getElementById('tape');
             if(!isSpinningLocal) {
-                const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
-                    // Аватарки на ячейки при ставке (восстановлено)
                     tape.innerHTML = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}"></div>`).join('').repeat(20);
                 } else { tape.innerHTML = '<div class="segment" style="opacity:0.1; background:#1c1c1e"></div>'.repeat(60); }
             }
-            // Шанс на выигрыш в списке (восстановлено)
             document.getElementById('players-list').innerHTML = data.players.map(p => `
                 <div class="player-row">
                     <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
@@ -242,9 +241,12 @@
         });
 
         socket.on('syncX', data => {
-            document.getElementById('x-timer').innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
-            const xTape = document.getElementById('x-tape');
-            if(!isSpinningLocal) {
+            const timerEl = document.getElementById('x-timer');
+            if (isSpinningLocal) {
+                timerEl.innerText = "КРУТИТСЯ...";
+            } else {
+                timerEl.innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
+                const xTape = document.getElementById('x-tape');
                 xTape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
                 xTape.classList.add('slow-drift');
             }
@@ -254,6 +256,7 @@
 
         socket.on('startSpin', (data) => {
             isSpinningLocal = true;
+            document.getElementById('timer-label').innerText = "КРУТИМ...";
             const tape = document.getElementById('tape');
             tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
@@ -263,6 +266,7 @@
 
         socket.on('startSpinX', (data) => {
             isSpinningLocal = true;
+            document.getElementById('x-timer').innerText = "КРУТИТСЯ...";
             const tape = document.getElementById('x-tape');
             tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
             tape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
@@ -274,19 +278,23 @@
             if(!document.getElementById('game-page').classList.contains('active') || currentSubGame !== 'pvp') return;
             document.getElementById('win-name').innerText = d.winner.name;
             document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
-            const pop = document.getElementById('winner-popup'); pop.classList.add('show');
-            setTimeout(() => { isSpinningLocal = false; pop.classList.remove('show'); }, 6000);
+            document.getElementById('winner-popup').classList.add('show');
+            setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 6000);
         });
 
         socket.on('winnerUpdateX', d => {
             if(!document.getElementById('game-page').classList.contains('active') || currentSubGame !== 'x') return;
             document.getElementById('win-name').innerText = d.winnerType.toUpperCase();
             document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
-            const pop = document.getElementById('winner-popup'); pop.classList.add('show');
-            setTimeout(() => { isSpinningLocal = false; document.getElementById('x-tape').classList.add('slow-drift'); pop.classList.remove('show'); }, 6000);
+            document.getElementById('winner-popup').classList.add('show');
+            setTimeout(() => { isSpinningLocal = false; document.getElementById('x-tape').classList.add('slow-drift'); document.getElementById('winner-popup').classList.remove('show'); }, 6000);
         });
 
-        socket.on('timer', t => { document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
+        socket.on('timer', t => { 
+            const lbl = document.getElementById('timer-label');
+            if (isSpinningLocal) lbl.innerText = "КРУТИМ...";
+            else lbl.innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; 
+        });
 
         function makeBet() { socket.emit('makeBet', { bet: parseFloat(document.getElementById('bet-input').value) }); }
         function makeBetX() { socket.emit('makeBetX', { bet: parseFloat(document.getElementById('x-bet-input').value), color: selectedXColor }); }
@@ -297,7 +305,7 @@
             closeModal('buy-modal');
             try {
                 const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
-                const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
+                const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih", amount: nanoAmount }] };
                 await tonConnectUI.sendTransaction(transaction);
                 socket.emit('depositConfirmed', amt); 
             } catch(e) {}
@@ -317,6 +325,7 @@
         }
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        selectXColor('black');
     </script>
 </body>
 </html>
