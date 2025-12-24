@@ -37,6 +37,16 @@ mongoose.connect(MONGODB_URI).then(() => console.log("==> DB Connected"));
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let countdownInterval = null;
 
+// Функция отправки обновленных данных пользователю
+async function sendUserData(userId) {
+    const user = await User.findOne({ userId: userId });
+    if (!user) return;
+    const refCount = await User.countDocuments({ referredBy: userId });
+    const data = user.toObject();
+    data.refCount = refCount;
+    io.to(userId).emit('updateUserData', data);
+}
+
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
 
@@ -53,26 +63,25 @@ io.on('connection', (socket) => {
                 referredBy: (data.ref && data.ref !== sId) ? data.ref : null 
             });
             await user.save();
+            
+            // Если есть пригласитель, обновляем его данные мгновенно
+            if (user.referredBy) {
+                sendUserData(user.referredBy);
+            }
         } else {
             user.photo = data.photo || user.photo;
             user.name = data.name || user.name;
+            if (data.username) user.username = data.username;
             await user.save();
         }
         if (data.wallet) user.wallet = data.wallet;
-
-        // Считаем приглашенных людей для передачи на клиент
-        const refCount = await User.countDocuments({ referredBy: sId });
         
-        const userData = user.toObject();
-        userData.refCount = refCount;
-        
-        socket.emit('updateUserData', userData);
+        sendUserData(sId);
     });
 
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const amt = parseFloat(data.bet);
-        
         if (isNaN(amt) || amt < 0.01) return;
         
         const user = await User.findOne({ userId: socket.userId });
@@ -83,12 +92,7 @@ io.on('connection', (socket) => {
             else gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: amt });
             gameState.bank += amt;
             
-            // Отправляем обновленные данные пользователя (с балансом и кол-вом рефов)
-            const refCount = await User.countDocuments({ referredBy: socket.userId });
-            const userData = user.toObject();
-            userData.refCount = refCount;
-            socket.emit('updateUserData', userData);
-
+            sendUserData(socket.userId);
             if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
             io.emit('sync', gameState);
         }
@@ -104,31 +108,27 @@ io.on('connection', (socket) => {
             const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
             const wallet = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
             const contract = tonClient.open(wallet);
-            const netAmt = (amt * 0.99).toFixed(4); // 1% комиссия
+            const netAmt = (amt * 0.99).toFixed(4); 
 
             await contract.transfer({
                 secretKey: key.secretKey, seqno: await contract.getSeqno(),
                 messages: [internal({ to: user.wallet, value: toNano(netAmt.toString()), bounce: false, body: "Withdraw" })]
             });
         } catch (e) { user.balance += amt; await user.save(); }
-        
-        const refCount = await User.countDocuments({ referredBy: socket.userId });
-        const userData = user.toObject();
-        userData.refCount = refCount;
-        socket.emit('updateUserData', userData);
+        sendUserData(socket.userId);
     });
 
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
+            // Поиск без учета регистра и @
             const targetUsername = data.target.replace('@', '');
-            const target = await User.findOneAndUpdate({ username: targetUsername }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
-            if (target) {
-                const refCount = await User.countDocuments({ referredBy: target.userId });
-                const userData = target.toObject();
-                userData.refCount = refCount;
-                io.to(target.userId).emit('updateUserData', userData);
-            }
+            const target = await User.findOneAndUpdate(
+                { username: { $regex: new RegExp(`^${targetUsername}$`, "i") } }, 
+                { $inc: { balance: parseFloat(data.amount) } }, 
+                { new: true }
+            );
+            if (target) sendUserData(target.userId);
         }
     });
 
@@ -138,13 +138,9 @@ io.on('connection', (socket) => {
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: depositAmt } }, { new: true });
         if (user && user.referredBy) {
             await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
+            sendUserData(user.referredBy);
         }
-        if (user) {
-            const refCount = await User.countDocuments({ referredBy: socket.userId });
-            const userData = user.toObject();
-            userData.refCount = refCount;
-            io.to(socket.userId).emit('updateUserData', userData);
-        }
+        if (user) sendUserData(socket.userId);
     });
 });
 
