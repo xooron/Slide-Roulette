@@ -97,7 +97,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // АДМИНКА (КАК БЫЛО)
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
