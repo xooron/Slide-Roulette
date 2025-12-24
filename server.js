@@ -16,7 +16,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started` ));
 
 const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 
@@ -32,15 +32,12 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-mongoose.connect(MONGODB_URI).then(() => console.log("==> DB Connected"));
+mongoose.connect(MONGODB_URI);
 
-// СОСТОЯНИЯ ИГР
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
-
 let countdownInterval = null;
 
-// Функции обновления пользователя
 async function sendUserData(userId) {
     const user = await User.findOne({ userId: userId });
     if (!user) return;
@@ -50,16 +47,13 @@ async function sendUserData(userId) {
     io.to(userId).emit('updateUserData', data);
 }
 
-// Генерация ленты для X рулетки
-function generateXTape(winnerType = null) {
+function generateXTape(winColor = null) {
     let tape = [];
-    const types = ['black', 'red', 'yellow'];
     for(let i=0; i<110; i++) {
-        let rand = Math.random();
-        let type = rand < 0.48 ? 'black' : (rand < 0.96 ? 'red' : 'yellow');
-        tape.push({ type });
+        let r = Math.random();
+        tape.push({ type: r < 0.48 ? 'black' : (r < 0.96 ? 'red' : 'yellow') });
     }
-    if(winnerType) tape[85] = { type: winnerType };
+    if(winColor) tape[85] = { type: winColor };
     return tape;
 }
 gameStateX.tapeLayout = generateXTape();
@@ -70,9 +64,7 @@ io.on('connection', (socket) => {
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
-        const sId = data.id.toString();
-        socket.userId = sId;
-        socket.join(sId);
+        const sId = data.id.toString(); socket.userId = sId; socket.join(sId);
         let user = await User.findOne({ userId: sId });
         if (!user) {
             user = new User({ userId: sId, username: data.username, name: data.name, photo: data.photo, referredBy: data.ref });
@@ -81,36 +73,30 @@ io.on('connection', (socket) => {
         sendUserData(sId);
     });
 
-    // PVP BET
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
-        const amt = parseFloat(data.bet);
         const user = await User.findOne({ userId: socket.userId });
-        if (user && user.balance >= amt) {
-            user.balance -= amt; await user.save();
-            gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: amt });
-            gameState.bank += amt;
+        if (user && user.balance >= data.bet) {
+            user.balance -= data.bet; await user.save();
+            gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: data.bet });
+            gameState.bank += data.bet;
             sendUserData(socket.userId);
-            if (gameState.players.length >= 2 && !countdownInterval) startCountdown();
+            if (gameState.players.length >= 2 && !countdownInterval) startPvpTimer();
             io.emit('sync', gameState);
         }
     });
 
-    // X BET
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
-        const amt = parseFloat(data.bet);
-        const color = data.color;
         const user = await User.findOne({ userId: socket.userId });
-        if (user && user.balance >= amt) {
-            user.balance -= amt; await user.save();
-            gameStateX.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: amt, color: color });
+        if (user && user.balance >= data.bet) {
+            user.balance -= data.bet; await user.save();
+            gameStateX.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: data.bet, color: data.color });
             sendUserData(socket.userId);
             io.emit('syncX', gameStateX);
         }
     });
 
-    // Другие действия (withdraw, deposit, admin) - без изменений
     socket.on('adminAction', async (data) => {
         const admin = await User.findOne({ userId: socket.userId });
         if (admin && admin.username === ADMIN_USERNAME) {
@@ -125,84 +111,57 @@ io.on('connection', (socket) => {
     });
 });
 
-// PVP ЛОГИКА
-function startCountdown() {
+function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
-        gameState.timeLeft--;
-        io.emit('timer', gameState.timeLeft);
-        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runGame(); }
+        gameState.timeLeft--; io.emit('timer', gameState.timeLeft);
+        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runPvp(); }
     }, 1000);
 }
 
-async function runGame() {
+async function runPvp() {
     gameState.isSpinning = true;
-    const currentBank = gameState.bank;
-    const winnerRandom = Math.random() * currentBank;
-    let current = 0, winner = gameState.players[0];
-    for (let p of gameState.players) { current += p.bet; if (winnerRandom <= current) { winner = p; break; } }
-
-    let tape = [];
-    while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
-    tape = tape.sort(() => Math.random() - 0.5);
-    tape[85] = { photo: winner.photo };
-    gameState.tapeLayout = tape;
-
-    io.emit('startSpin', gameState);
-
+    let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
+    for (let p of gameState.players) { cur += p.bet; if (rand <= cur) { win = p; break; } }
+    let tape = []; while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
+    tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo };
+    gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
-        const winAmount = currentBank * 0.95;
-        await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmount } });
-        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: currentBank * 0.05 } });
-        io.emit('winnerUpdate', { winner, winAmount });
+        await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: bank * 0.95 } });
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
+        io.emit('winnerUpdate', { winner: win, winAmount: bank * 0.95 });
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
 }
 
-// X ЛОГИКА (Цикличная)
+// Slide X Timer Loop
 setInterval(() => {
     if(!gameStateX.isSpinning) {
         gameStateX.timeLeft--;
-        if(gameStateX.timeLeft <= 0) runGameX();
+        if(gameStateX.timeLeft <= 0) runX();
         io.emit('syncX', gameStateX);
     }
 }, 1000);
 
-async function runGameX() {
+async function runX() {
     gameStateX.isSpinning = true;
-    const rand = Math.random();
-    const winnerType = rand < 0.48 ? 'black' : (rand < 0.96 ? 'red' : 'yellow');
-    const multiplier = winnerType === 'yellow' ? 16 : 2;
-
-    gameStateX.tapeLayout = generateXTape(winnerType);
+    let r = Math.random(), winCol = r < 0.48 ? 'black' : (r < 0.96 ? 'red' : 'yellow');
+    let mult = winCol === 'yellow' ? 16 : 2;
+    gameStateX.tapeLayout = generateXTape(winCol);
     io.emit('startSpinX', gameStateX);
 
     setTimeout(async () => {
-        let adminProfit = 0;
+        let adminBank = 0;
         for(let p of gameStateX.players) {
-            if(p.color === winnerType) {
-                const win = p.bet * multiplier;
-                await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: win } });
-            } else {
-                adminProfit += p.bet;
-            }
+            if(p.color === winCol) await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } });
+            else adminBank += p.bet;
         }
-
-        if(adminProfit > 0) {
-            await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminProfit } });
-        }
-
-        gameStateX.history.unshift(winnerType);
-        if(gameStateX.history.length > 10) gameStateX.history.pop();
-        
-        io.emit('winnerUpdateX', { winnerType });
-        
+        if(adminBank > 0) await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminBank } });
+        gameStateX.history.unshift(winCol); if(gameStateX.history.length > 15) gameStateX.history.pop();
+        io.emit('winnerUpdateX', { winnerType: winCol });
         setTimeout(() => {
-            gameStateX.players = [];
-            gameStateX.timeLeft = 15;
-            gameStateX.isSpinning = false;
-            gameStateX.tapeLayout = generateXTape();
-            io.emit('syncX', gameStateX);
+            gameStateX.players = []; gameStateX.timeLeft = 15; gameStateX.isSpinning = false;
+            gameStateX.tapeLayout = generateXTape(); io.emit('syncX', gameStateX);
         }, 3000);
     }, 11000);
 }
