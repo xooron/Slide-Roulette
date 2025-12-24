@@ -76,10 +76,19 @@ io.on('connection', (socket) => {
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if (user && user.balance >= data.bet) {
-            user.balance -= data.bet; await user.save();
-            gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: data.bet });
-            gameState.bank += data.bet;
+        const betAmt = parseFloat(data.bet);
+        if (user && user.balance >= betAmt) {
+            user.balance -= betAmt; await user.save();
+            
+            // Суммирование ставок PVP
+            let pRecord = gameState.players.find(p => p.userId === socket.userId);
+            if (pRecord) {
+                pRecord.bet += betAmt;
+            } else {
+                gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt });
+            }
+            
+            gameState.bank += betAmt;
             sendUserData(socket.userId);
             if (gameState.players.length >= 2 && !countdownInterval) startPvpTimer();
             io.emit('sync', gameState);
@@ -89,9 +98,19 @@ io.on('connection', (socket) => {
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        if (user && user.balance >= data.bet) {
-            user.balance -= data.bet; await user.save();
-            gameStateX.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: data.bet, color: data.color });
+        const betAmt = parseFloat(data.bet);
+        const color = data.color;
+        if (user && user.balance >= betAmt) {
+            user.balance -= betAmt; await user.save();
+            
+            // Суммирование ставок Slide X (на один и тот же цвет)
+            let pRecord = gameStateX.players.find(p => p.userId === socket.userId && p.color === color);
+            if (pRecord) {
+                pRecord.bet += betAmt;
+            } else {
+                gameStateX.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt, color: color });
+            }
+            
             sendUserData(socket.userId);
             io.emit('syncX', gameStateX);
         }
