@@ -58,7 +58,7 @@
         input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; font-weight: bold; }
         .btn-gold { width: 100%; background: var(--gold); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; margin-top: 5px; }
         
-        /* КРАСИВОЕ ОКНО ПОБЕДИТЕЛЯ */
+        /* УВЕДОМЛЕНИЕ О ПОБЕДЕ */
         #winner-popup { 
             position: fixed; bottom: -120%; left: 5%; width: 90%; 
             background: rgba(20, 20, 25, 0.95); backdrop-filter: blur(20px);
@@ -87,7 +87,7 @@
             <div class="game-card" onclick="showSubGame('x')"><h3>SLIDE X</h3></div>
         </div>
 
-        <!-- PVP -->
+        <!-- PVP VIEW -->
         <div id="pvp-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
@@ -100,7 +100,7 @@
             <div id="players-list"></div>
         </div>
 
-        <!-- SLIDE X -->
+        <!-- X VIEW -->
         <div id="x-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="x-timer">00:15</div>
@@ -143,7 +143,6 @@
         </div>
     </div>
 
-    <!-- ОКНО ПОБЕДИТЕЛЯ -->
     <div id="winner-popup">
         <div class="win-title">РЕЗУЛЬТАТ РАУНДА</div>
         <div id="win-name" style="font-size: 26px; font-weight: 900; margin-bottom: 5px;">...</div>
@@ -154,7 +153,7 @@
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--star)">Пополнение баланса</h3>
             <input type="number" id="dep-amt" placeholder="1.0" value="1.0">
-            <button class="btn-gold" onclick="payTON()">КУПИТЬ</button>
+            <button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ</button>
             <button onclick="closeModal('buy-modal')" style="margin-top:15px; background:none; border:none; color:gray; font-weight:bold;">ЗАКРЫТЬ</button>
         </div>
     </div>
@@ -183,7 +182,7 @@
         let isSpinningLocal = false;
         let myId = "";
         let selectedXColor = 'black';
-        let currentSubGame = 'menu';
+        let currentSubGame = 'menu'; // menu, pvp, x
 
         const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
@@ -240,8 +239,8 @@
 
         socket.on('syncX', data => {
             document.getElementById('x-timer').innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
+            const xTape = document.getElementById('x-tape');
             if(!isSpinningLocal) {
-                const xTape = document.getElementById('x-tape');
                 xTape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
                 xTape.classList.add('slow-drift');
             }
@@ -267,8 +266,11 @@
             setTimeout(() => { tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; tape.style.transform = `translateX(-${offset}px)`; }, 50);
         });
 
+        // ПРАВИЛЬНЫЕ УВЕДОМЛЕНИЯ (ТОЛЬКО НА СВОИХ СТРАНИЦАХ)
         socket.on('winnerUpdate', d => {
-            if(currentSubGame !== 'pvp') return; // Показываем только в PVP
+            const isGamePageActive = document.getElementById('game-page').classList.contains('active');
+            if(!isGamePageActive || currentSubGame !== 'pvp') return;
+
             document.getElementById('win-name').innerText = d.winner.name;
             document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
             const pop = document.getElementById('winner-popup'); pop.classList.add('show');
@@ -276,7 +278,9 @@
         });
 
         socket.on('winnerUpdateX', d => {
-            if(currentSubGame !== 'x') return; // Показываем только в X
+            const isGamePageActive = document.getElementById('game-page').classList.contains('active');
+            if(!isGamePageActive || currentSubGame !== 'x') return;
+
             document.getElementById('win-name').innerText = d.winnerType.toUpperCase();
             document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
             const pop = document.getElementById('winner-popup'); pop.classList.add('show');
@@ -290,10 +294,16 @@
         
         async function payTON() {
             const amt = parseFloat(document.getElementById('dep-amt').value);
-            const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
-            const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
-            const result = await tonConnectUI.sendTransaction(transaction);
-            if (result) socket.emit('depositConfirmed', amt); closeModal('buy-modal');
+            if(isNaN(amt) || amt <= 0) return;
+
+            closeModal('buy-modal'); // СРАЗУ ЗАКРЫВАЕМ ОКНО
+            
+            try {
+                const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
+                const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
+                await tonConnectUI.sendTransaction(transaction); // ПЕРЕКИДЫВАЕТ В КОШЕЛЕК
+                socket.emit('depositConfirmed', amt); 
+            } catch(e) { tg.showAlert("Транзакция отменена"); }
         }
 
         function copyRefLink() {
