@@ -108,10 +108,9 @@ io.on('connection', (socket) => {
 
     socket.on('depositConfirmed', async (amt) => {
         if(!socket.userId) return;
-        const depositAmt = parseFloat(amt);
-        const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: depositAmt } }, { new: true });
+        const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
         if (user && user.referredBy) {
-            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: depositAmt * 0.1 } });
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { refBalance: amt * 0.1 } });
             sendUserData(user.referredBy);
         }
         if (user) sendUserData(socket.userId);
@@ -134,9 +133,10 @@ async function runPvp() {
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
-        await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: bank * 0.95 } });
+        const winAmt = bank * 0.95;
+        await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
         await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
-        io.emit('winnerUpdate', { winner: win, winAmount: bank * 0.95 });
+        io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
 }
