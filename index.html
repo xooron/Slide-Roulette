@@ -8,19 +8,17 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
-        :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); }
+        :root { --tg-bg: #0a0a0c; --gold: linear-gradient(135deg, #ffcf33, #ff9500); --star: #ffd700; --hint: #a1a1a6; --glass: rgba(255, 255, 255, 0.08); --red: #ff4444; --black: #2c2c2e; --yellow: #ffcf33; }
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { font-family: -apple-system, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
         .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
 
-        /* Стили Меню Игры */
         .game-selection { padding: 20px; display: flex; flex-direction: column; gap: 15px; justify-content: center; height: 100%; }
         .game-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: center; cursor: pointer; transition: 0.2s; }
         .game-card:active { transform: scale(0.98); background: rgba(255,255,255,0.12); }
         .game-card h3 { margin: 0; color: var(--star); font-size: 24px; }
-        .game-card p { margin: 5px 0 0; color: var(--hint); font-size: 14px; }
 
         .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         #ton-connect-btn { scale: 0.8; transform-origin: left; }
@@ -36,8 +34,21 @@
         .slow-drift { animation: driftAnim 18s linear infinite; width: max-content; }
         @keyframes driftAnim { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         
-        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; background: #1c1c1e; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
-        .segment img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .segment { flex-shrink: 0; width: 80px; height: 80px; margin: 0 5px; border-radius: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; font-weight: 900; font-size: 20px; }
+        .segment img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Специальные стили для X рулетки */
+        .seg-red { background: var(--red); color: white; }
+        .seg-black { background: var(--black); color: white; }
+        .seg-yellow { background: var(--yellow); color: black; box-shadow: inset 0 0 20px rgba(0,0,0,0.3); }
+
+        .history-bar { display: flex; gap: 6px; padding: 10px 16px; overflow-x: auto; scrollbar-width: none; }
+        .history-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        
+        .x-bet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 16px 16px 16px; }
+        .x-btn { border-radius: 14px; padding: 15px; border: 2px solid transparent; cursor: pointer; text-align: center; transition: 0.2s; }
+        .x-btn span { display: block; font-size: 10px; opacity: 0.8; margin-top: 4px; }
+        .x-btn.active { border-color: white; transform: scale(1.05); }
 
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; border: 1px solid rgba(255,255,255,0.03); }
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); z-index: 1000; }
@@ -45,14 +56,11 @@
         .nav-btn.active { color: var(--star); }
         .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
 
-        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; font-weight: bold; }
         .btn-gold { width: 100%; background: var(--gold); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; margin-top: 5px; }
         
-        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 30px; border-radius: 30px 30px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
+        #winner-popup { position: fixed; bottom: -100%; left: 0; width: 100%; background: var(--gold); color: black; padding: 30px; border-radius: 30px 30px 0 0; z-index: 6000; transition: 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28); text-align: center; }
         #winner-popup.show { bottom: 0; }
-        .close-win { position: absolute; right: 20px; top: 15px; font-size: 32px; font-weight: bold; opacity: 0.5; cursor: pointer; }
-
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
     </style>
@@ -65,21 +73,18 @@
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
 
-        <!-- Вид: Меню выбора игры -->
         <div id="game-menu-view" class="game-selection">
             <div class="game-card" onclick="showSubGame('pvp')">
                 <h3>SLIDE PVP</h3>
-                <p>Классическая рулетка с игроками</p>
             </div>
             <div class="game-card" onclick="showSubGame('x')">
                 <h3>SLIDE X</h3>
-                <p>Новый режим (скоро)</p>
             </div>
         </div>
 
-        <!-- Вид: PVP Рулетка -->
+        <!-- PVP VIEW -->
         <div id="pvp-view" style="display:none; flex-direction:column;">
-            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД В МЕНЮ</div>
+            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
             <div id="timer-label" style="text-align:center; font-weight:bold; color:var(--hint); font-size:11px; letter-spacing: 1px;">ОЖИДАЕМ ИГРОКОВ...</div>
             <div class="roulette-wrap">
@@ -87,20 +92,38 @@
                 <div id="tape" class="tape slow-drift"></div>
             </div>
             <div style="padding: 16px; display:flex; gap:10px;">
-                <input type="number" id="bet-input" value="0.10" step="0.01" min="0.01" inputmode="decimal">
+                <input type="number" id="bet-input" value="0.10" step="0.01" min="0.01">
                 <button onclick="makeBet()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
             </div>
             <div id="players-list"></div>
         </div>
 
-        <!-- Вид: Slide X (Пусто) -->
-        <div id="x-view" style="display:none; text-align:center; padding-top:100px;">
-            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer; text-align:left;" onclick="showSubGame('menu')">← НАЗАД В МЕНЮ</div>
-            <h1 style="color:var(--hint)">ПУСТО</h1>
-            <p>Этот режим находится в разработке</p>
+        <!-- X VIEW -->
+        <div id="x-view" style="display:none; flex-direction:column;">
+            <div style="padding: 10px; font-size: 12px; color: var(--star); cursor:pointer;" onclick="showSubGame('menu')">← НАЗАД</div>
+            <div class="bank-val" id="x-timer">00:15</div>
+            <div class="roulette-wrap">
+                <div class="pointer"></div>
+                <div id="x-tape" class="tape slow-drift"></div>
+            </div>
+            
+            <div class="history-bar" id="x-history"></div>
+
+            <div class="x-bet-grid">
+                <div class="x-btn seg-black" id="btn-black" onclick="selectXColor('black')">2X<span>ЧЕРНОЕ</span></div>
+                <div class="x-btn seg-red" id="btn-red" onclick="selectXColor('red')">2X<span>КРАСНОЕ</span></div>
+                <div class="x-btn seg-yellow" id="btn-yellow" onclick="selectXColor('yellow')">16X<span>ЖЕЛТОЕ</span></div>
+            </div>
+
+            <div style="padding: 0 16px; display:flex; gap:10px;">
+                <input type="number" id="x-bet-input" value="0.10" step="0.01">
+                <button onclick="makeBetX()" style="background:var(--gold); border:none; padding:0 30px; border-radius:14px; font-weight:900; color:black; height:54px;">СТАВКА</button>
+            </div>
+            <div id="x-players-list" style="margin-top:15px"></div>
         </div>
     </div>
 
+    <!-- Остальные страницы (Shop, Profile, Admin) - без изменений -->
     <div id="shop-page" class="page">
         <div style="padding: 100px 20px; text-align:center;">
             <h2 style="color:var(--star)">МАГАЗИН</h2>
@@ -131,11 +154,9 @@
     </div>
 
     <div id="winner-popup">
-        <div class="close-win" onclick="this.parentElement.classList.remove('show')">×</div>
-        <div style="font-size: 14px; font-weight: 800; opacity: 0.7; letter-spacing: 2px;">ПОБЕДИТЕЛЬ</div>
+        <div style="font-size: 14px; font-weight: 800; opacity: 0.7;">РЕЗУЛЬТАТ</div>
         <div id="win-name" style="font-size: 28px; font-weight: 900; margin: 8px 0;">...</div>
         <div id="win-amt" style="font-size: 22px; font-weight: 800; color: #000;">+ 0.00 TON</div>
-        <div id="win-multiplier" style="font-size: 18px; font-weight: 900; margin-top: 10px; color: #fff; background: #000; display: inline-block; padding: 4px 15px; border-radius: 12px;">x0.0</div>
     </div>
 
     <div id="buy-modal" class="modal">
@@ -170,6 +191,7 @@
         const tg = window.Telegram.WebApp; const socket = io(); tg.expand();
         let isSpinningLocal = false;
         let myId = "";
+        let selectedXColor = 'black';
 
         const MY_TON_ADDRESS = "UQC279x6VA1CReWI28w7UtWuUBYC2YTmxYd0lmxqH-9CYgih"; 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
@@ -180,13 +202,18 @@
         function showSubGame(type) {
             document.getElementById('game-menu-view').style.display = type === 'menu' ? 'flex' : 'none';
             document.getElementById('pvp-view').style.display = type === 'pvp' ? 'flex' : 'none';
-            document.getElementById('x-view').style.display = type === 'x' ? 'block' : 'none';
+            document.getElementById('x-view').style.display = type === 'x' ? 'flex' : 'none';
+        }
+
+        function selectXColor(color) {
+            selectedXColor = color;
+            document.querySelectorAll('.x-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + color).classList.add('active');
         }
 
         function fixImg(el) {
             const name = el.getAttribute('data-name') || 'P';
             el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff&size=128`;
-            el.onerror = null;
         }
 
         function getAva(url, name) { 
@@ -216,22 +243,40 @@
             if(d.username === 'maesexs') document.getElementById('admin-nav').style.display = 'flex';
         });
 
+        // PVP SYNC
         socket.on('sync', data => {
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
             if(!isSpinningLocal) {
                 const tape = document.getElementById('tape');
                 if(data.players && data.players.length > 0) {
-                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}" data-name="${p.name}" onerror="fixImg(this)"></div>`).join('');
+                    const items = data.players.map(p => `<div class="segment"><img src="${getAva(p.photo, p.name)}" onerror="fixImg(this)"></div>`).join('');
                     tape.innerHTML = items.repeat(40);
                 } else {
-                    tape.innerHTML = '<div class="segment" style="opacity:0.3"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
+                    tape.innerHTML = '<div class="segment" style="opacity:0.1; background:#1c1c1e"></div>'.repeat(60);
                 }
-                tape.classList.add('slow-drift');
             }
             document.getElementById('players-list').innerHTML = data.players.map(p => `
                 <div class="player-row">
-                    <img src="${getAva(p.photo, p.name)}" data-name="${p.name}" onerror="fixImg(this)" style="width:38px; height:38px; border-radius:50%; margin-right:12px; object-fit:cover;">
-                    <div><b>${p.name}</b><div style="font-size:10px; color:gray;">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
+                    <img src="${getAva(p.photo, p.name)}" style="width:38px; height:38px; border-radius:50%; margin-right:12px;">
+                    <div><b>${p.name}</b></div>
+                    <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)} TON</div>
+                </div>`).join('');
+        });
+
+        // X SYNC
+        socket.on('syncX', data => {
+            document.getElementById('x-timer').innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
+            if(!isSpinningLocal) {
+                const xTape = document.getElementById('x-tape');
+                xTape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
+            }
+            
+            document.getElementById('x-history').innerHTML = data.history.map(h => `<div class="history-dot seg-${h}"></div>`).join('');
+            
+            document.getElementById('x-players-list').innerHTML = data.players.map(p => `
+                <div class="player-row">
+                    <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
+                    <div><b>${p.name}</b> <span style="font-size:10px; color:var(--hint)">на ${p.color.toUpperCase()}</span></div>
                     <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)} TON</div>
                 </div>`).join('');
         });
@@ -239,10 +284,20 @@
         socket.on('startSpin', (data) => {
             isSpinningLocal = true;
             const tape = document.getElementById('tape');
-            tape.classList.remove('slow-drift'); 
-            tape.style.transition = 'none'; 
-            tape.style.transform = 'translateX(0)';
-            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}" onerror="fixImg(this)"></div>`).join('');
+            tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
+            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment"><img src="${getAva(c.photo, 'P')}"></div>`).join('');
+            const offset = (85 * 90) - (window.innerWidth / 2) + 45;
+            setTimeout(() => { 
+                tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; 
+                tape.style.transform = `translateX(-${offset}px)`; 
+            }, 50);
+        });
+
+        socket.on('startSpinX', (data) => {
+            isSpinningLocal = true;
+            const tape = document.getElementById('x-tape');
+            tape.classList.remove('slow-drift'); tape.style.transition = 'none'; tape.style.transform = 'translateX(0)';
+            tape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
             const offset = (85 * 90) - (window.innerWidth / 2) + 45;
             setTimeout(() => { 
                 tape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; 
@@ -253,71 +308,55 @@
         socket.on('winnerUpdate', d => {
             document.getElementById('win-name').innerText = d.winner.name;
             document.getElementById('win-amt').innerText = `+ ${d.winAmount.toFixed(2)} TON`;
-            const x = (d.winAmount / d.winnerBet).toFixed(1);
-            document.getElementById('win-multiplier').innerText = `x${x}`;
             document.getElementById('winner-popup').classList.add('show');
-            
-            setTimeout(() => { 
-                isSpinningLocal = false; 
-                document.getElementById('winner-popup').classList.remove('show');
-                const t = document.getElementById('tape');
-                t.style.transition = 'none'; 
-                t.style.transform = 'translateX(0)';
-                t.innerHTML = '<div class="segment" style="opacity:0.3"><img src="https://ui-avatars.com/api/?name=?"></div>'.repeat(60);
-                t.classList.add('slow-drift'); 
-            }, 6000);
+            setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 6000);
+        });
+
+        socket.on('winnerUpdateX', d => {
+            document.getElementById('win-name').innerText = d.winnerType.toUpperCase();
+            document.getElementById('win-amt').innerText = d.userWin > 0 ? `ВЫ ВЫИГРАЛИ!` : `ВЫПАЛО ${d.winnerType.toUpperCase()}`;
+            document.getElementById('winner-popup').classList.add('show');
+            setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 6000);
         });
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."; });
 
-        async function payTON() {
-            const amt = parseFloat(document.getElementById('dep-amt').value);
-            if(isNaN(amt) || amt <= 0) return;
-            if(!tonConnectUI.account) return tg.showAlert("Подключите кошелек!");
-            try {
-                const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
-                const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
-                const result = await tonConnectUI.sendTransaction(transaction);
-                if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); tg.showAlert("Запрос на оплату отправлен!"); }
-            } catch (e) { tg.showAlert("Ошибка!"); }
-        }
-
         function makeBet() { 
             const val = parseFloat(document.getElementById('bet-input').value);
-            if(isNaN(val) || val < 0.01) return tg.showAlert("Минимальная ставка 0.01 TON");
-            socket.emit('makeBet', { bet: val, photo: tg.initDataUnsafe.user?.photo_url }); 
-        }
-        
-        function withdraw() { let a = prompt("Сумма (мин 5 TON, ком. 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
-        
-        function copyRefLink() {
-            // Исправленная универсальная ссылка (для ПК и телефона)
-            const botUsername = "slideroulettebot"; 
-            const link = `https://t.me/${botUsername}/app?startapp=${myId}`; 
-            
-            const el = document.createElement('textarea'); 
-            el.value = link; 
-            document.body.appendChild(el); 
-            el.select();
-            document.execCommand('copy'); 
-            document.body.removeChild(el); 
-            tg.showAlert("Ссылка скопирована для ПК и Телефона!");
+            socket.emit('makeBet', { bet: val }); 
         }
 
-        function adminGive() {
-            const u = document.getElementById('admin-user').value;
-            const a = document.getElementById('admin-amt').value;
-            socket.emit('adminAction', { target: u, amount: a });
+        function makeBetX() {
+            const val = parseFloat(document.getElementById('x-bet-input').value);
+            if(isNaN(val) || val < 0.01) return tg.showAlert("Мин. ставка 0.01");
+            socket.emit('makeBetX', { bet: val, color: selectedXColor });
         }
-        function switchTab(t, el) {
+        
+        async function payTON() {
+            const amt = parseFloat(document.getElementById('dep-amt').value);
+            const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
+            const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: MY_TON_ADDRESS, amount: nanoAmount }] };
+            const result = await tonConnectUI.sendTransaction(transaction);
+            if (result) { socket.emit('depositConfirmed', amt); closeModal('buy-modal'); }
+        }
+
+        function copyRefLink() {
+            const link = `https://t.me/slideroulettebot/app?startapp=${myId}`;
+            const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
+            document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Скопировано!");
+        }
+
+        function withdraw() { let a = prompt("Сумма:"); if(a) socket.emit('requestWithdraw', { amount: a }); }
+        function adminGive() { socket.emit('adminAction', { target: document.getElementById('admin-user').value, amount: document.getElementById('admin-amt').value }); }
+        function switchTab(t, el) { 
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            el.classList.add('active');
-            if(t === 'game') showSubGame('menu'); // При переходе в игру всегда открывать меню
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); el.classList.add('active');
+            if(t === 'game') showSubGame('menu');
         }
         function openModal(id) { document.getElementById(id).style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        selectXColor('black');
     </script>
 </body>
 </html>
