@@ -85,7 +85,7 @@
                 <div style="font-size:36px; font-weight:900; color:var(--star);"><span id="p-bal">0.00</span> TON</div>
             </div>
             <button class="btn-gold" onclick="withdraw()">ВЫВЕСТИ TON</button>
-            <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-bal">0.00</span> TON)</button>
+            <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">РЕФ. ССЫЛКА (<span id="p-ref-count">0</span> чел. / <span id="p-ref-bal">0.00</span> TON)</button>
             <button class="btn-gold" style="background: #0088cc; color: #fff;" onclick="window.open('https://t.me/maesexs', '_blank')">ПОДДЕРЖКА</button>
         </div>
     </div>
@@ -171,6 +171,7 @@
             document.getElementById('bal-game').innerText = d.balance.toFixed(2);
             document.getElementById('p-bal').innerText = d.balance.toFixed(2);
             document.getElementById('p-ref-bal').innerText = (d.refBalance || 0).toFixed(2);
+            document.getElementById('p-ref-count').innerText = d.refCount || 0;
             document.getElementById('p-name').innerText = d.name;
             const ava = document.getElementById('p-ava');
             ava.setAttribute('data-name', d.name);
@@ -253,10 +254,23 @@
         function withdraw() { let a = prompt("Сумма (мин 5 TON, ком. 1%):"); if(a) socket.emit('requestWithdraw', { amount: a }); }
         
         function copyRefLink() {
-            const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; 
-            const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select();
-            document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Ссылка скопирована!");
+            // Исправленная ссылка для совместимости с ПК и мобильными устройствами
+            const botUser = "slideroulettebot"; 
+            const link = `https://t.me/${botUser}/app?startapp=${myId}`; 
+            
+            const el = document.createElement('textarea'); 
+            el.value = link; 
+            document.body.appendChild(el); 
+            el.select();
+            try {
+                document.execCommand('copy'); 
+                tg.showAlert("Ссылка скопирована!");
+            } catch(e) {
+                tg.showAlert("Ошибка копирования. Используйте мобильный телефон.");
+            }
+            document.body.removeChild(el);
         }
+
         function adminGive() {
             const u = document.getElementById('admin-user').value;
             const a = document.getElementById('admin-amt').value;
