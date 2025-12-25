@@ -8,7 +8,7 @@ const { mnemonicToWalletKey } = require("@ton/crypto");
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
-const TON_API_KEY = process.env.TON_API_KEY; // Добавь это в Render!
+const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'maesexs';
 
 const app = express();
@@ -19,7 +19,6 @@ const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started` ));
 
-// Инициализация клиента с API ключом для обхода ошибки 429
 const tonClient = new TonClient({ 
     endpoint: 'https://toncenter.com/api/v2/jsonRPC',
     apiKey: TON_API_KEY 
@@ -44,12 +43,13 @@ let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], ta
 let countdownInterval = null;
 
 async function sendUserData(userId) {
-    const user = await User.findOne({ userId: userId });
+    if (!userId) return;
+    const user = await User.findOne({ userId: userId.toString() });
     if (!user) return;
-    const refCount = await User.countDocuments({ referredBy: userId });
+    const refCount = await User.countDocuments({ referredBy: userId.toString() });
     const data = user.toObject();
     data.refCount = refCount;
-    io.to(userId).emit('updateUserData', data);
+    io.to(userId.toString()).emit('updateUserData', data);
 }
 
 function generateXTape(winColor = null) {
@@ -81,10 +81,10 @@ io.on('connection', (socket) => {
                 name: data.name, 
                 photo: data.photo, 
                 wallet: data.wallet,
-                referredBy: data.ref 
+                referredBy: data.ref && data.ref !== sId ? data.ref : null
             });
             await user.save();
-            if (data.ref) sendUserData(data.ref);
+            if (user.referredBy) sendUserData(user.referredBy);
         } else {
             user.wallet = data.wallet || user.wallet;
             user.username = data.username || user.username;
@@ -96,24 +96,15 @@ io.on('connection', (socket) => {
     socket.on('requestWithdraw', async (data) => {
         if (!socket.userId) return;
         const amount = parseFloat(data.amount);
-        
-        if (isNaN(amount) || amount < 3) {
-            return socket.emit('withdrawStatus', { success: false, msg: "Минимум 3 TON" });
-        }
+        if (isNaN(amount) || amount < 3) return socket.emit('withdrawStatus', { success: false, msg: "Минимум 3 TON" });
 
         const user = await User.findOne({ userId: socket.userId });
-        if (!user || user.balance < amount) {
-            return socket.emit('withdrawStatus', { success: false, msg: "Недостаточно баланса" });
-        }
-
-        if (!user.wallet) {
-            return socket.emit('withdrawStatus', { success: false, msg: "Кошелек не подключен" });
-        }
+        if (!user || user.balance < amount) return socket.emit('withdrawStatus', { success: false, msg: "Недостаточно баланса" });
+        if (!user.wallet) return socket.emit('withdrawStatus', { success: false, msg: "Кошелек не подключен" });
 
         try {
             const commission = amount * 0.01;
             const finalAmount = (amount - commission).toFixed(4);
-
             user.balance -= amount;
             await user.save();
 
@@ -121,26 +112,18 @@ io.on('connection', (socket) => {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
                 const walletContract = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
                 const wallet = tonClient.open(walletContract);
-                
                 const transfer = wallet.createTransfer({
                     seqno: await wallet.getSeqno(),
                     secretKey: key.secretKey,
-                    messages: [internal({
-                        to: user.wallet,
-                        value: toNano(finalAmount),
-                        bounce: false,
-                    })]
+                    messages: [internal({ to: user.wallet, value: toNano(finalAmount), bounce: false })]
                 });
                 await wallet.send(transfer);
             }
-
             socket.emit('withdrawStatus', { success: true, msg: "Выплата отправлена!" });
             sendUserData(socket.userId);
         } catch (e) {
-            console.error("Withdraw error:", e);
-            // Возвращаем баланс пользователю при ошибке транзакции
             await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amount } });
-            socket.emit('withdrawStatus', { success: false, msg: "Ошибка сети TON. Попробуйте позже." });
+            socket.emit('withdrawStatus', { success: false, msg: "Ошибка сети TON." });
         }
     });
 
@@ -148,7 +131,7 @@ io.on('connection', (socket) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
-        if (user && user.balance >= betAmt) {
+        if (user && user.balance >= betAmt && betAmt > 0) {
             user.balance -= betAmt; await user.save();
             let pRecord = gameState.players.find(p => p.userId === socket.userId);
             if (pRecord) { pRecord.bet += betAmt; } 
@@ -165,7 +148,7 @@ io.on('connection', (socket) => {
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
         const color = data.color;
-        if (user && user.balance >= betAmt) {
+        if (user && user.balance >= betAmt && betAmt > 0) {
             user.balance -= betAmt; await user.save();
             let pRecord = gameStateX.players.find(p => p.userId === socket.userId && p.color === color);
             if (pRecord) { pRecord.bet += betAmt; } 
@@ -208,13 +191,14 @@ async function runPvp() {
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
     for (let p of gameState.players) { cur += p.bet; if (rand <= cur) { win = p; break; } }
     let tape = []; while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
-    tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo };
+    tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
         const winAmt = bank * 0.95;
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
         await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
+        gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
 }
@@ -236,12 +220,18 @@ async function runX() {
     setTimeout(async () => {
         let adminBank = 0;
         for(let p of gameStateX.players) {
-            if(p.color === winCol) await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } });
-            else adminBank += p.bet;
+            if(p.color === winCol) {
+                await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } });
+            } else {
+                adminBank += p.bet;
+            }
+            sendUserData(p.userId);
         }
         if(adminBank > 0) await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminBank } });
         gameStateX.history.unshift(winCol); if(gameStateX.history.length > 15) gameStateX.history.pop();
-        io.emit('winnerUpdateX', { winnerType: winCol });
+        
+        io.emit('winnerUpdateX', { winner: {name: winCol.toUpperCase()}, winAmount: winCol === 'black' ? 'ЧЕРНОЕ' : (winCol === 'red' ? 'КРАСНОЕ' : 'ЖЕЛТОЕ') });
+        
         setTimeout(() => {
             gameStateX.players = []; gameStateX.timeLeft = 15; gameStateX.isSpinning = false;
             gameStateX.tapeLayout = generateXTape(); io.emit('syncX', gameStateX);
