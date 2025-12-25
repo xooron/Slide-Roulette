@@ -7,7 +7,8 @@ const { mnemonicToWalletKey } = require("@ton/crypto");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
-const MNEMONIC = process.env.MNEMONIC; // Твоя секретная фраза от кошелька-выплавщика
+const MNEMONIC = process.env.MNEMONIC; 
+const TON_API_KEY = process.env.TON_API_KEY; // Добавь это в Render!
 const ADMIN_USERNAME = 'maesexs';
 
 const app = express();
@@ -18,7 +19,11 @@ const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started` ));
 
-const tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
+// Инициализация клиента с API ключом для обхода ошибки 429
+const tonClient = new TonClient({ 
+    endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+    apiKey: TON_API_KEY 
+});
 
 const userSchema = new mongoose.Schema({
     userId: { type: String, unique: true },
@@ -38,7 +43,6 @@ let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayo
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
 let countdownInterval = null;
 
-// Функция отправки данных пользователя (обновляет рефералов в реальном времени)
 async function sendUserData(userId) {
     const user = await User.findOne({ userId: userId });
     if (!user) return;
@@ -59,7 +63,6 @@ function generateXTape(winColor = null) {
 }
 gameStateX.tapeLayout = generateXTape();
 
-// ГЛАВНЫЙ БЛОК ПОДКЛЮЧЕНИЯ
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
@@ -78,16 +81,11 @@ io.on('connection', (socket) => {
                 name: data.name, 
                 photo: data.photo, 
                 wallet: data.wallet,
-                referredBy: data.ref // Засчитываем реферала при первом входе
+                referredBy: data.ref 
             });
             await user.save();
-            
-            // Если есть пригласитель, обновляем его данные сразу
-            if (data.ref) {
-                sendUserData(data.ref);
-            }
+            if (data.ref) sendUserData(data.ref);
         } else {
-            // Обновляем кошелек и данные если изменились
             user.wallet = data.wallet || user.wallet;
             user.username = data.username || user.username;
             await user.save();
@@ -95,7 +93,6 @@ io.on('connection', (socket) => {
         sendUserData(sId);
     });
 
-    // ЛОГИКА АВТОМАТИЧЕСКОГО ВЫВОДА
     socket.on('requestWithdraw', async (data) => {
         if (!socket.userId) return;
         const amount = parseFloat(data.amount);
@@ -114,38 +111,36 @@ io.on('connection', (socket) => {
         }
 
         try {
-            const commission = amount * 0.01; // 1% комиссия
-            const finalAmount = amount - commission;
+            const commission = amount * 0.01;
+            const finalAmount = (amount - commission).toFixed(4);
 
-            // Списываем баланс в БД
             user.balance -= amount;
             await user.save();
 
-            // Автоматическая отправка через TON API
             if (MNEMONIC) {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
-                const wallet = tonClient.open(WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 }));
+                const walletContract = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
+                const wallet = tonClient.open(walletContract);
                 
-                // Создаем трансфер
                 const transfer = wallet.createTransfer({
                     seqno: await wallet.getSeqno(),
                     secretKey: key.secretKey,
                     messages: [internal({
                         to: user.wallet,
-                        value: toNano(finalAmount.toFixed(9)),
+                        value: toNano(finalAmount),
                         bounce: false,
                     })]
                 });
                 await wallet.send(transfer);
             }
 
-            socket.emit('withdrawStatus', { success: true, msg: "Выведено на ваш адрес!" });
+            socket.emit('withdrawStatus', { success: true, msg: "Выплата отправлена!" });
             sendUserData(socket.userId);
-            console.log(`User ${user.userId} withdrew ${finalAmount} TON`);
-
         } catch (e) {
             console.error("Withdraw error:", e);
-            socket.emit('withdrawStatus', { success: false, msg: "Ошибка транзакции" });
+            // Возвращаем баланс пользователю при ошибке транзакции
+            await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amount } });
+            socket.emit('withdrawStatus', { success: false, msg: "Ошибка сети TON. Попробуйте позже." });
         }
     });
 
@@ -193,7 +188,6 @@ io.on('connection', (socket) => {
         if(!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
         if (user && user.referredBy) {
-            // Начисляем 10% пригласителю при пополнении
             await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { balance: amt * 0.1, refBalance: amt * 0.1 } });
             sendUserData(user.referredBy);
         }
@@ -201,7 +195,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// Функции игры (PVP / X)
 function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
