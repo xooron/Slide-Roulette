@@ -40,7 +40,10 @@ mongoose.connect(MONGODB_URI);
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
+let gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
+
 let countdownInterval = null;
+let wheelTimerInterval = null;
 
 async function sendUserData(userId) {
     if (!userId) return;
@@ -66,6 +69,7 @@ gameStateX.tapeLayout = generateXTape();
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
+    socket.emit('syncWheel', gameStateWheel);
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
@@ -143,6 +147,22 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('makeBetWheel', async (data) => {
+        if (gameStateWheel.isSpinning || !socket.userId) return;
+        const user = await User.findOne({ userId: socket.userId });
+        const betAmt = parseFloat(data.bet);
+        if (user && user.balance >= betAmt && betAmt > 0) {
+            user.balance -= betAmt; await user.save();
+            let pRecord = gameStateWheel.players.find(p => p.userId === socket.userId);
+            if (pRecord) pRecord.bet += betAmt;
+            else gameStateWheel.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt });
+            gameStateWheel.bank += betAmt;
+            sendUserData(socket.userId);
+            if (gameStateWheel.players.length >= 2 && !wheelTimerInterval) startWheelTimer();
+            io.emit('syncWheel', gameStateWheel);
+        }
+    });
+
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -186,6 +206,61 @@ function startPvpTimer() {
     }, 1000);
 }
 
+function startWheelTimer() {
+    gameStateWheel.timeLeft = 13;
+    wheelTimerInterval = setInterval(() => {
+        gameStateWheel.timeLeft--;
+        io.emit('syncWheel', gameStateWheel);
+        if (gameStateWheel.timeLeft <= 0) {
+            clearInterval(wheelTimerInterval);
+            wheelTimerInterval = null;
+            runWheel();
+        }
+    }, 1000);
+}
+
+async function runWheel() {
+    gameStateWheel.isSpinning = true;
+    const totalBank = gameStateWheel.bank;
+    let rand = Math.random() * totalBank;
+    let current = 0;
+    let winner = gameStateWheel.players[0];
+    
+    // Calculate winning angle for sync
+    let winnerStartAngle = 0;
+    for (let p of gameStateWheel.players) {
+        if (rand >= current && rand <= current + p.bet) {
+            winner = p;
+            winnerStartAngle = (current / totalBank) * Math.PI * 2;
+            break;
+        }
+        current += p.bet;
+    }
+
+    const winnerSliceSize = (winner.bet / totalBank) * Math.PI * 2;
+    // Target angle points to the top (1.5 * PI is north)
+    const targetAngle = (Math.PI * 1.5) - (winnerStartAngle + winnerSliceSize / 2);
+
+    io.emit('startSpinWheel', { targetAngle: targetAngle });
+
+    setTimeout(async () => {
+        const profit = totalBank - winner.bet;
+        const winAmt = winner.bet + (profit * 0.95); // 5% only from profit
+        const fee = profit * 0.05;
+
+        await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmt } });
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: fee } });
+
+        io.emit('winnerUpdate', { winner: winner, winAmount: winAmt });
+        gameStateWheel.players.forEach(p => sendUserData(p.userId));
+
+        setTimeout(() => {
+            gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
+            io.emit('syncWheel', gameStateWheel);
+        }, 4000);
+    }, 13500);
+}
+
 async function runPvp() {
     gameState.isSpinning = true;
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
@@ -194,9 +269,10 @@ async function runPvp() {
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
-        const winAmt = bank * 0.95;
+        const profit = bank - win.bet;
+        const winAmt = win.bet + (profit * 0.95);
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
-        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: profit * 0.05 } });
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
