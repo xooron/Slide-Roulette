@@ -226,7 +226,6 @@ async function runWheel() {
     let current = 0;
     let winner = gameStateWheel.players[0];
     
-    // Calculate winning angle for sync
     let winnerStartAngle = 0;
     for (let p of gameStateWheel.players) {
         if (rand >= current && rand <= current + p.bet) {
@@ -238,14 +237,13 @@ async function runWheel() {
     }
 
     const winnerSliceSize = (winner.bet / totalBank) * Math.PI * 2;
-    // Target angle points to the top (1.5 * PI is north)
     const targetAngle = (Math.PI * 1.5) - (winnerStartAngle + winnerSliceSize / 2);
 
     io.emit('startSpinWheel', { targetAngle: targetAngle });
 
     setTimeout(async () => {
         const profit = totalBank - winner.bet;
-        const winAmt = winner.bet + (profit * 0.95); // 5% only from profit
+        const winAmt = winner.bet + (profit * 0.95);
         const fee = profit * 0.05;
 
         await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmt } });
