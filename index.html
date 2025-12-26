@@ -233,6 +233,7 @@
         let wheelPlayers = [];
         let currentWheelRotation = 0;
         let wheelIdleSpeed = 0.005;
+        const wheelColors = ['#ffcf33', '#ff4444', '#44ff44', '#4444ff', '#ff44ff', '#44ffff', '#ffa500', '#8a2be2'];
 
         function showSubGame(type) {
             document.getElementById('game-menu-view').style.display = type === 'menu' ? 'flex' : 'none';
@@ -285,11 +286,20 @@
             const radius = center - 10;
             wheelCtx.clearRect(0, 0, size, size);
 
-            if (wheelPlayers.length === 0) {
-                wheelCtx.beginPath();
-                wheelCtx.arc(center, center, radius, 0, Math.PI * 2);
-                wheelCtx.fillStyle = '#1c1c1e';
-                wheelCtx.fill();
+            if (wheelPlayers.length < 2) {
+                // Idle state: 4 equal sectors, black and dark white
+                for (let i = 0; i < 4; i++) {
+                    const sliceAngle = Math.PI / 2;
+                    const startAngle = currentWheelRotation + (i * sliceAngle);
+                    wheelCtx.beginPath();
+                    wheelCtx.moveTo(center, center);
+                    wheelCtx.arc(center, center, radius, startAngle, startAngle + sliceAngle);
+                    wheelCtx.fillStyle = i % 2 === 0 ? '#111111' : '#3a3a3c'; // Черный и темно-белый
+                    wheelCtx.fill();
+                    wheelCtx.strokeStyle = '#1c1c1e';
+                    wheelCtx.lineWidth = 2;
+                    wheelCtx.stroke();
+                }
             } else {
                 let currentAngle = currentWheelRotation;
                 const totalBet = wheelPlayers.reduce((sum, p) => sum + p.bet, 0);
@@ -299,7 +309,7 @@
                     wheelCtx.beginPath();
                     wheelCtx.moveTo(center, center);
                     wheelCtx.arc(center, center, radius, currentAngle, currentAngle + sliceAngle);
-                    wheelCtx.fillStyle = i % 2 === 0 ? '#ffcf33' : '#e0a500';
+                    wheelCtx.fillStyle = wheelColors[i % wheelColors.length];
                     wheelCtx.fill();
                     wheelCtx.strokeStyle = '#111';
                     wheelCtx.lineWidth = 2;
@@ -312,7 +322,6 @@
                     const imgSize = 40;
                     const imgX = radius * 0.7;
                     
-                    // Simple circle clip for avatar
                     wheelCtx.beginPath();
                     wheelCtx.arc(imgX, 0, imgSize/2, 0, Math.PI*2);
                     wheelCtx.clip();
@@ -356,7 +365,7 @@
             document.getElementById('wheel-center-text').innerText = "КРУТИМ!";
             
             const startRotation = currentWheelRotation;
-            const targetRotation = data.targetAngle + (Math.PI * 2 * 10); // 10 full spins
+            const targetRotation = data.targetAngle + (Math.PI * 2 * 15); // spins
             const duration = 13000;
             const startTime = performance.now();
 
@@ -364,9 +373,7 @@
                 const elapsed = now - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 
-                // Ease out cubic
-                const ease = 1 - Math.pow(1 - progress, 3);
-                
+                const ease = 1 - Math.pow(1 - progress, 4);
                 currentWheelRotation = startRotation + (targetRotation - startRotation) * ease;
                 
                 const size = 600;
@@ -381,7 +388,7 @@
                     wheelCtx.beginPath();
                     wheelCtx.moveTo(center, center);
                     wheelCtx.arc(center, center, radius, angle, angle + sliceAngle);
-                    wheelCtx.fillStyle = i % 2 === 0 ? '#ffcf33' : '#e0a500';
+                    wheelCtx.fillStyle = wheelColors[i % wheelColors.length];
                     wheelCtx.fill();
                     wheelCtx.stroke();
                     angle += sliceAngle;
@@ -468,10 +475,15 @@
         });
 
         socket.on('winnerUpdateX', d => {
-            document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
-            document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
-            document.getElementById('winner-popup').classList.add('show');
-            setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
+            // Только если открыта вкладка Slide X
+            if (document.getElementById('x-view').style.display === 'flex') {
+                document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
+                document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
+                document.getElementById('winner-popup').classList.add('show');
+                setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
+            } else {
+                isSpinningLocal = false;
+            }
         });
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = isSpinningLocal ? "КРУТИМ..." : (t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."); });
