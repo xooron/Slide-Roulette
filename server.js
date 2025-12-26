@@ -9,7 +9,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
 const TON_API_KEY = process.env.TON_API_KEY; 
-const ADMIN_USERNAME = 'maesexs';
+const ADMIN_USERNAME = 'makse666';
 
 const app = express();
 app.use(express.static(__dirname));
@@ -238,3 +238,4 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
+
