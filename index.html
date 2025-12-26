@@ -41,7 +41,6 @@
         .btn-plus { background: var(--gold-grad); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; cursor: pointer; }
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
         
-        /* Wheel CSS */
         .wheel-container { position: relative; width: 280px; height: 280px; margin: 20px auto; }
         #wheel-canvas { width: 100%; height: 100%; border-radius: 50%; border: 4px solid #1c1c1e; box-shadow: 0 0 30px rgba(255,207,51,0.2); }
         .wheel-pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid var(--star); z-index: 10; filter: drop-shadow(0 0 5px var(--star)); }
@@ -77,6 +76,7 @@
         #winner-popup.show { bottom: 90px; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
+        .color-indicator { width: 12px; height: 12px; border-radius: 3px; margin-right: 10px; }
     </style>
 </head>
 <body>
@@ -115,18 +115,15 @@
             <div id="players-list"></div>
         </div>
 
-        <!-- Wheel View -->
         <div id="wheel-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
             <div style="text-align: center; font-size: 11px; color: var(--hint); margin-top: 10px;">ОБЩИЙ БАНК ТОНОВ</div>
             <div class="bank-val" id="wheel-bank">0.00 TON</div>
-            
             <div class="wheel-container">
                 <div class="wheel-pointer"></div>
                 <div class="wheel-center" id="wheel-center-text">ОЖИДАНИЕ</div>
                 <canvas id="wheel-canvas" width="600" height="600"></canvas>
             </div>
-
             <div style="padding: 16px; display:flex; gap:10px;">
                 <input type="number" id="wheel-bet-input" value="0.10" step="0.01">
                 <button onclick="makeBetWheel()" style="background:var(--star); border:none; padding:0 30px; border-radius:14px; font-weight:900; height:54px;">СТАВКА</button>
@@ -227,13 +224,24 @@
         let isSpinningLocal = false; let myId = ""; let selectedXColor = 'black';
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: window.location.origin + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-btn' });
 
-        // Wheel Globals
         const wheelCanvas = document.getElementById('wheel-canvas');
         const wheelCtx = wheelCanvas.getContext('2d');
         let wheelPlayers = [];
         let currentWheelRotation = 0;
         let wheelIdleSpeed = 0.005;
         const wheelColors = ['#ffcf33', '#ff4444', '#44ff44', '#4444ff', '#ff44ff', '#44ffff', '#ffa500', '#8a2be2'];
+        const avatarCache = {};
+
+        function getCachedImg(url, name) {
+            const src = getAva(url, name);
+            if (!avatarCache[src]) {
+                const img = new Image();
+                img.src = src;
+                img.crossOrigin = "anonymous";
+                avatarCache[src] = img;
+            }
+            return avatarCache[src];
+        }
 
         function showSubGame(type) {
             document.getElementById('game-menu-view').style.display = type === 'menu' ? 'flex' : 'none';
@@ -272,14 +280,6 @@
             if(d.username === 'maesexs') document.getElementById('admin-nav').style.display = 'flex';
         });
 
-        socket.on('withdrawStatus', d => {
-            const st = document.getElementById('withdraw-status');
-            st.innerText = d.msg;
-            st.style.color = d.success ? '#44ff44' : '#ff4444';
-            if(d.success) setTimeout(() => closeModal('withdraw-modal'), 2000);
-        });
-
-        // Wheel Draw Function
         function drawWheel() {
             const size = 600;
             const center = size / 2;
@@ -287,14 +287,13 @@
             wheelCtx.clearRect(0, 0, size, size);
 
             if (wheelPlayers.length < 2) {
-                // Idle state: 4 equal sectors, black and dark white
                 for (let i = 0; i < 4; i++) {
                     const sliceAngle = Math.PI / 2;
                     const startAngle = currentWheelRotation + (i * sliceAngle);
                     wheelCtx.beginPath();
                     wheelCtx.moveTo(center, center);
                     wheelCtx.arc(center, center, radius, startAngle, startAngle + sliceAngle);
-                    wheelCtx.fillStyle = i % 2 === 0 ? '#111111' : '#3a3a3c'; // Черный и темно-белый
+                    wheelCtx.fillStyle = i % 2 === 0 ? '#111111' : '#3a3a3c';
                     wheelCtx.fill();
                     wheelCtx.strokeStyle = '#1c1c1e';
                     wheelCtx.lineWidth = 2;
@@ -303,7 +302,6 @@
             } else {
                 let currentAngle = currentWheelRotation;
                 const totalBet = wheelPlayers.reduce((sum, p) => sum + p.bet, 0);
-
                 wheelPlayers.forEach((player, i) => {
                     const sliceAngle = (player.bet / totalBet) * Math.PI * 2;
                     wheelCtx.beginPath();
@@ -315,22 +313,21 @@
                     wheelCtx.lineWidth = 2;
                     wheelCtx.stroke();
 
-                    // Draw Avatar on sector
                     wheelCtx.save();
                     wheelCtx.translate(center, center);
                     wheelCtx.rotate(currentAngle + sliceAngle / 2);
-                    const imgSize = 40;
-                    const imgX = radius * 0.7;
+                    const imgSize = 45;
+                    const imgX = radius * 0.75;
                     
                     wheelCtx.beginPath();
                     wheelCtx.arc(imgX, 0, imgSize/2, 0, Math.PI*2);
                     wheelCtx.clip();
                     
-                    const img = new Image();
-                    img.src = getAva(player.photo, player.name);
-                    wheelCtx.drawImage(img, imgX - imgSize/2, -imgSize/2, imgSize, imgSize);
+                    const img = getCachedImg(player.photo, player.name);
+                    if (img.complete) {
+                        wheelCtx.drawImage(img, imgX - imgSize/2, -imgSize/2, imgSize, imgSize);
+                    }
                     wheelCtx.restore();
-
                     currentAngle += sliceAngle;
                 });
             }
@@ -345,15 +342,14 @@
         socket.on('syncWheel', data => {
             document.getElementById('wheel-bank').innerText = data.bank.toFixed(2) + " TON";
             wheelPlayers = data.players;
-            
             const centerText = document.getElementById('wheel-center-text');
             if(!isSpinningLocal) {
                 if(data.timeLeft > 0) centerText.innerHTML = `СТАРТ<br>${data.timeLeft}`;
                 else centerText.innerText = "ОЖИДАНИЕ";
             }
-
-            document.getElementById('wheel-players-list').innerHTML = data.players.map(p => `
+            document.getElementById('wheel-players-list').innerHTML = data.players.map((p, i) => `
                 <div class="player-row">
+                    <div class="color-indicator" style="background:${wheelColors[i % wheelColors.length]}"></div>
                     <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
                     <div><b>${p.name}</b><div style="font-size:10px; color:var(--hint);">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
                     <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)}</div>
@@ -363,16 +359,14 @@
         socket.on('startSpinWheel', (data) => {
             isSpinningLocal = true;
             document.getElementById('wheel-center-text').innerText = "КРУТИМ!";
-            
             const startRotation = currentWheelRotation;
-            const targetRotation = data.targetAngle + (Math.PI * 2 * 15); // spins
+            const targetRotation = data.targetAngle + (Math.PI * 2 * 15);
             const duration = 13000;
             const startTime = performance.now();
 
             function animate(now) {
                 const elapsed = now - startTime;
                 const progress = Math.min(elapsed / duration, 1);
-                
                 const ease = 1 - Math.pow(1 - progress, 4);
                 currentWheelRotation = startRotation + (targetRotation - startRotation) * ease;
                 
@@ -391,17 +385,52 @@
                     wheelCtx.fillStyle = wheelColors[i % wheelColors.length];
                     wheelCtx.fill();
                     wheelCtx.stroke();
+                    
+                    wheelCtx.save();
+                    wheelCtx.translate(center, center);
+                    wheelCtx.rotate(angle + sliceAngle / 2);
+                    const imgSize = 45;
+                    const imgX = radius * 0.75;
+                    wheelCtx.beginPath();
+                    wheelCtx.arc(imgX, 0, imgSize/2, 0, Math.PI*2);
+                    wheelCtx.clip();
+                    const img = getCachedImg(player.photo, player.name);
+                    if (img.complete) wheelCtx.drawImage(img, imgX - imgSize/2, -imgSize/2, imgSize, imgSize);
+                    wheelCtx.restore();
+
                     angle += sliceAngle;
                 });
 
                 if (progress < 1) {
                     requestAnimationFrame(animate);
                 } else {
-                    isSpinningLocal = false;
-                    drawWheel();
+                    // Колесо остановилось. Ждем 2 секунды.
+                    setTimeout(() => {
+                        isSpinningLocal = false;
+                        drawWheel();
+                    }, 2000);
                 }
             }
             requestAnimationFrame(animate);
+        });
+
+        socket.on('winnerUpdate', d => {
+            // Задержка показа плашки победителя, чтобы совпало с 2 сек паузой колеса
+            setTimeout(() => {
+                document.getElementById('win-name').innerText = d.winner.name;
+                document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
+                document.getElementById('winner-popup').classList.add('show');
+                setTimeout(() => { document.getElementById('winner-popup').classList.remove('show'); }, 4000);
+            }, 2000);
+        });
+
+        socket.on('winnerUpdateX', d => {
+            if (document.getElementById('x-view').style.display === 'flex') {
+                document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
+                document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
+                document.getElementById('winner-popup').classList.add('show');
+                setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
+            } else { isSpinningLocal = false; }
         });
 
         socket.on('sync', data => {
@@ -419,20 +448,14 @@
                    else tape.innerHTML = '<div class="segment" style="opacity:0.1;"></div>'.repeat(60);
                 }
             }
-            document.getElementById('players-list').innerHTML = data.players.map(p => `
-                <div class="player-row">
-                    <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
-                    <div><b>${p.name}</b><div style="font-size:10px; color:var(--hint);">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
-                    <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)}</div>
-                </div>`).join('');
+            document.getElementById('players-list').innerHTML = data.players.map(p => `<div class="player-row"><img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;"><div><b>${p.name}</b><div style="font-size:10px; color:var(--hint);">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div><div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)}</div></div>`).join('');
         });
 
         socket.on('syncX', data => {
             const timerEl = document.getElementById('x-timer');
             const xTape = document.getElementById('x-tape');
-            if (isSpinningLocal || data.isSpinning) {
-                timerEl.innerText = "КРУТИТСЯ...";
-            } else {
+            if (isSpinningLocal || data.isSpinning) { timerEl.innerText = "КРУТИТСЯ..."; } 
+            else {
                 timerEl.innerText = `00:${data.timeLeft.toString().padStart(2, '0')}`;
                 xTape.innerHTML = data.tapeLayout.map(c => `<div class="segment seg-${c.type}">${c.type === 'yellow' ? '16X' : '2X'}</div>`).join('');
                 xTape.classList.add('slow-drift');
@@ -467,29 +490,8 @@
             setTimeout(() => { xTape.style.transition = 'transform 10s cubic-bezier(0.15, 0, 0.05, 1)'; xTape.style.transform = `translateX(-${offset}px)`; }, 50);
         });
 
-        socket.on('winnerUpdate', d => {
-            document.getElementById('win-name').innerText = d.winner.name;
-            document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
-            document.getElementById('winner-popup').classList.add('show');
-            setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 6000);
-        });
-
-        socket.on('winnerUpdateX', d => {
-            // Только если открыта вкладка Slide X
-            if (document.getElementById('x-view').style.display === 'flex') {
-                document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
-                document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
-                document.getElementById('winner-popup').classList.add('show');
-                setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
-            } else {
-                isSpinningLocal = false;
-            }
-        });
-
-        socket.on('timer', t => { document.getElementById('timer-label').innerText = isSpinningLocal ? "КРУТИМ..." : (t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."); });
-
-        function makeBet() { socket.emit('makeBet', { bet: parseFloat(document.getElementById('bet-input').value) }); }
         function makeBetWheel() { socket.emit('makeBetWheel', { bet: parseFloat(document.getElementById('wheel-bet-input').value) }); }
+        function makeBet() { socket.emit('makeBet', { bet: parseFloat(document.getElementById('bet-input').value) }); }
         function makeBetX() { socket.emit('makeBetX', { bet: parseFloat(document.getElementById('x-bet-input').value), color: selectedXColor }); }
         
         async function payTON() {
@@ -503,16 +505,13 @@
                 closeModal('buy-modal');
             } catch(e) {}
         }
-
         function requestWithdrawal() {
             const amt = parseFloat(document.getElementById('withdraw-amt').value);
             if(amt < 3) return alert("Минимальная сумма 3 TON");
             socket.emit('requestWithdraw', { amount: amt });
         }
-
         function copyRefLink() { const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Ссылка скопирована!"); }
         function adminGive() { socket.emit('adminAction', { target: document.getElementById('admin-user').value, amount: document.getElementById('admin-amt').value }); }
-        
         function switchTab(t, el) { 
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(t + '-page').classList.add('active');
