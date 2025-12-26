@@ -40,6 +40,13 @@
         .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
         .btn-plus { background: var(--gold-grad); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; cursor: pointer; }
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
+        
+        /* Wheel CSS */
+        .wheel-container { position: relative; width: 280px; height: 280px; margin: 20px auto; }
+        #wheel-canvas { width: 100%; height: 100%; border-radius: 50%; border: 4px solid #1c1c1e; box-shadow: 0 0 30px rgba(255,207,51,0.2); }
+        .wheel-pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid var(--star); z-index: 10; filter: drop-shadow(0 0 5px var(--star)); }
+        .wheel-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70px; height: 70px; background: #111; border-radius: 50%; border: 3px solid #1c1c1e; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 9px; font-weight: 900; color: var(--star); z-index: 5; flex-direction: column; box-shadow: inset 0 0 15px rgba(0,0,0,0.5); }
+
         .roulette-wrap { position: relative; width: 100%; height: 100px; background: rgba(255,255,255,0.02); margin: 15px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .pointer { position: absolute; left: 50%; width: 4px; height: 100%; background: var(--star); z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px var(--star); }
         .tape { display: flex; height: 100%; align-items: center; }
@@ -92,6 +99,7 @@
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         <div id="game-menu-view" class="game-selection">
+            <div class="game-card" onclick="showSubGame('wheel')"><h3>SLIDE WHEEL</h3></div>
             <div class="game-card" onclick="showSubGame('pvp')"><h3>SLIDE PVP</h3></div>
             <div class="game-card" onclick="showSubGame('x')"><h3>SLIDE X</h3></div>
         </div>
@@ -106,6 +114,26 @@
             </div>
             <div id="players-list"></div>
         </div>
+
+        <!-- Wheel View -->
+        <div id="wheel-view" style="display:none; flex-direction:column;">
+            <div style="padding: 10px; color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
+            <div style="text-align: center; font-size: 11px; color: var(--hint); margin-top: 10px;">ОБЩИЙ БАНК ТОНОВ</div>
+            <div class="bank-val" id="wheel-bank">0.00 TON</div>
+            
+            <div class="wheel-container">
+                <div class="wheel-pointer"></div>
+                <div class="wheel-center" id="wheel-center-text">ОЖИДАНИЕ</div>
+                <canvas id="wheel-canvas" width="600" height="600"></canvas>
+            </div>
+
+            <div style="padding: 16px; display:flex; gap:10px;">
+                <input type="number" id="wheel-bet-input" value="0.10" step="0.01">
+                <button onclick="makeBetWheel()" style="background:var(--star); border:none; padding:0 30px; border-radius:14px; font-weight:900; height:54px;">СТАВКА</button>
+            </div>
+            <div id="wheel-players-list"></div>
+        </div>
+
         <div id="x-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
             <div class="bank-val" id="x-timer">00:15</div>
@@ -199,10 +227,18 @@
         let isSpinningLocal = false; let myId = ""; let selectedXColor = 'black';
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: window.location.origin + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-btn' });
 
+        // Wheel Globals
+        const wheelCanvas = document.getElementById('wheel-canvas');
+        const wheelCtx = wheelCanvas.getContext('2d');
+        let wheelPlayers = [];
+        let currentWheelRotation = 0;
+        let wheelIdleSpeed = 0.005;
+
         function showSubGame(type) {
             document.getElementById('game-menu-view').style.display = type === 'menu' ? 'flex' : 'none';
             document.getElementById('pvp-view').style.display = type === 'pvp' ? 'flex' : 'none';
             document.getElementById('x-view').style.display = type === 'x' ? 'flex' : 'none';
+            document.getElementById('wheel-view').style.display = type === 'wheel' ? 'flex' : 'none';
         }
 
         function selectXColor(color) {
@@ -240,6 +276,125 @@
             st.innerText = d.msg;
             st.style.color = d.success ? '#44ff44' : '#ff4444';
             if(d.success) setTimeout(() => closeModal('withdraw-modal'), 2000);
+        });
+
+        // Wheel Draw Function
+        function drawWheel() {
+            const size = 600;
+            const center = size / 2;
+            const radius = center - 10;
+            wheelCtx.clearRect(0, 0, size, size);
+
+            if (wheelPlayers.length === 0) {
+                wheelCtx.beginPath();
+                wheelCtx.arc(center, center, radius, 0, Math.PI * 2);
+                wheelCtx.fillStyle = '#1c1c1e';
+                wheelCtx.fill();
+            } else {
+                let currentAngle = currentWheelRotation;
+                const totalBet = wheelPlayers.reduce((sum, p) => sum + p.bet, 0);
+
+                wheelPlayers.forEach((player, i) => {
+                    const sliceAngle = (player.bet / totalBet) * Math.PI * 2;
+                    wheelCtx.beginPath();
+                    wheelCtx.moveTo(center, center);
+                    wheelCtx.arc(center, center, radius, currentAngle, currentAngle + sliceAngle);
+                    wheelCtx.fillStyle = i % 2 === 0 ? '#ffcf33' : '#e0a500';
+                    wheelCtx.fill();
+                    wheelCtx.strokeStyle = '#111';
+                    wheelCtx.lineWidth = 2;
+                    wheelCtx.stroke();
+
+                    // Draw Avatar on sector
+                    wheelCtx.save();
+                    wheelCtx.translate(center, center);
+                    wheelCtx.rotate(currentAngle + sliceAngle / 2);
+                    const imgSize = 40;
+                    const imgX = radius * 0.7;
+                    
+                    // Simple circle clip for avatar
+                    wheelCtx.beginPath();
+                    wheelCtx.arc(imgX, 0, imgSize/2, 0, Math.PI*2);
+                    wheelCtx.clip();
+                    
+                    const img = new Image();
+                    img.src = getAva(player.photo, player.name);
+                    wheelCtx.drawImage(img, imgX - imgSize/2, -imgSize/2, imgSize, imgSize);
+                    wheelCtx.restore();
+
+                    currentAngle += sliceAngle;
+                });
+            }
+
+            if(!isSpinningLocal) {
+                currentWheelRotation += wheelIdleSpeed;
+                requestAnimationFrame(drawWheel);
+            }
+        }
+        drawWheel();
+
+        socket.on('syncWheel', data => {
+            document.getElementById('wheel-bank').innerText = data.bank.toFixed(2) + " TON";
+            wheelPlayers = data.players;
+            
+            const centerText = document.getElementById('wheel-center-text');
+            if(!isSpinningLocal) {
+                if(data.timeLeft > 0) centerText.innerHTML = `СТАРТ<br>${data.timeLeft}`;
+                else centerText.innerText = "ОЖИДАНИЕ";
+            }
+
+            document.getElementById('wheel-players-list').innerHTML = data.players.map(p => `
+                <div class="player-row">
+                    <img src="${getAva(p.photo, p.name)}" style="width:30px; height:30px; border-radius:50%; margin-right:10px;">
+                    <div><b>${p.name}</b><div style="font-size:10px; color:var(--hint);">Шанс: ${((p.bet/(data.bank||1))*100).toFixed(1)}%</div></div>
+                    <div style="margin-left:auto; color:var(--star); font-weight:bold;">${p.bet.toFixed(2)}</div>
+                </div>`).join('');
+        });
+
+        socket.on('startSpinWheel', (data) => {
+            isSpinningLocal = true;
+            document.getElementById('wheel-center-text').innerText = "КРУТИМ!";
+            
+            const startRotation = currentWheelRotation;
+            const targetRotation = data.targetAngle + (Math.PI * 2 * 10); // 10 full spins
+            const duration = 13000;
+            const startTime = performance.now();
+
+            function animate(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                
+                currentWheelRotation = startRotation + (targetRotation - startRotation) * ease;
+                
+                const size = 600;
+                const center = size / 2;
+                const radius = center - 10;
+                wheelCtx.clearRect(0, 0, size, size);
+                
+                let angle = currentWheelRotation;
+                const totalBet = wheelPlayers.reduce((sum, p) => sum + p.bet, 0);
+                wheelPlayers.forEach((player, i) => {
+                    const sliceAngle = (player.bet / totalBet) * Math.PI * 2;
+                    wheelCtx.beginPath();
+                    wheelCtx.moveTo(center, center);
+                    wheelCtx.arc(center, center, radius, angle, angle + sliceAngle);
+                    wheelCtx.fillStyle = i % 2 === 0 ? '#ffcf33' : '#e0a500';
+                    wheelCtx.fill();
+                    wheelCtx.stroke();
+                    angle += sliceAngle;
+                });
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    isSpinningLocal = false;
+                    drawWheel();
+                }
+            }
+            requestAnimationFrame(animate);
         });
 
         socket.on('sync', data => {
@@ -322,6 +477,7 @@
         socket.on('timer', t => { document.getElementById('timer-label').innerText = isSpinningLocal ? "КРУТИМ..." : (t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."); });
 
         function makeBet() { socket.emit('makeBet', { bet: parseFloat(document.getElementById('bet-input').value) }); }
+        function makeBetWheel() { socket.emit('makeBetWheel', { bet: parseFloat(document.getElementById('wheel-bet-input').value) }); }
         function makeBetX() { socket.emit('makeBetX', { bet: parseFloat(document.getElementById('x-bet-input').value), color: selectedXColor }); }
         
         async function payTON() {
