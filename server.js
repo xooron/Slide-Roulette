@@ -40,11 +40,7 @@ mongoose.connect(MONGODB_URI);
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
-// НОВОЕ: Состояние для Slide Wheel
-let gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
-
 let countdownInterval = null;
-let wheelTimerInterval = null;
 
 async function sendUserData(userId) {
     if (!userId) return;
@@ -70,7 +66,6 @@ gameStateX.tapeLayout = generateXTape();
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
-    socket.emit('syncWheel', gameStateWheel);
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
@@ -132,7 +127,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // PVP Bet
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -149,25 +143,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // НОВОЕ: Slide Wheel Bet
-    socket.on('makeBetWheel', async (data) => {
-        if (gameStateWheel.isSpinning || !socket.userId) return;
-        const user = await User.findOne({ userId: socket.userId });
-        const betAmt = parseFloat(data.bet);
-        if (user && user.balance >= betAmt && betAmt > 0) {
-            user.balance -= betAmt; await user.save();
-            let pRecord = gameStateWheel.players.find(p => p.userId === socket.userId);
-            if (pRecord) pRecord.bet += betAmt;
-            else gameStateWheel.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt });
-            gameStateWheel.bank += betAmt;
-            sendUserData(socket.userId);
-            // Запуск таймера при 2 игроках
-            if (gameStateWheel.players.length >= 2 && !wheelTimerInterval) startWheelTimer();
-            io.emit('syncWheel', gameStateWheel);
-        }
-    });
-
-    // Slide X Bet
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -203,65 +178,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- WHEEL LOGIC ---
-function startWheelTimer() {
-    gameStateWheel.timeLeft = 13;
-    wheelTimerInterval = setInterval(() => {
-        gameStateWheel.timeLeft--;
-        io.emit('syncWheel', gameStateWheel);
-        if (gameStateWheel.timeLeft <= 0) {
-            clearInterval(wheelTimerInterval);
-            wheelTimerInterval = null;
-            runWheel();
-        }
-    }, 1000);
-}
-
-async function runWheel() {
-    gameStateWheel.isSpinning = true;
-    const totalBank = gameStateWheel.bank;
-    let rand = Math.random() * totalBank;
-    let current = 0;
-    let winner = gameStateWheel.players[0];
-    let winnerStartAngle = 0;
-    
-    for (let p of gameStateWheel.players) {
-        if (rand >= current && rand <= current + p.bet) {
-            winner = p;
-            winnerStartAngle = (current / totalBank) * Math.PI * 2;
-            break;
-        }
-        current += p.bet;
-    }
-
-    const winnerSliceSize = (winner.bet / totalBank) * Math.PI * 2;
-    // Стрелка на 1.5 PI (верх). Считаем угол для остановки.
-    const targetAngle = (Math.PI * 1.5) - (winnerStartAngle + winnerSliceSize / 2);
-
-    io.emit('startSpinWheel', { targetAngle: targetAngle });
-
-    // 13 секунд кручения + 2 секунды паузы на победителя
-    setTimeout(async () => {
-        // Комиссия 5% только с чужих ставок
-        const othersBets = totalBank - winner.bet;
-        const winAmt = winner.bet + (othersBets * 0.95);
-        const adminFee = othersBets * 0.05;
-
-        await User.findOneAndUpdate({ userId: winner.userId }, { $inc: { balance: winAmt } });
-        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminFee } });
-
-        io.emit('winnerUpdate', { winner: winner, winAmount: winAmt });
-        gameStateWheel.players.forEach(p => sendUserData(p.userId));
-
-        // Очистка через 2 секунды после объявления
-        setTimeout(() => {
-            gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
-            io.emit('syncWheel', gameStateWheel);
-        }, 2000);
-    }, 15000);
-}
-
-// --- PVP LOGIC ---
 function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
@@ -278,17 +194,15 @@ async function runPvp() {
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
-        const othersBets = bank - win.bet;
-        const winAmt = win.bet + (othersBets * 0.95);
+        const winAmt = bank * 0.95;
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
-        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: othersBets * 0.05 } });
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
 }
 
-// --- X LOGIC ---
 setInterval(() => {
     if(!gameStateX.isSpinning) {
         gameStateX.timeLeft--;
@@ -304,14 +218,20 @@ async function runX() {
     gameStateX.tapeLayout = generateXTape(winCol);
     io.emit('startSpinX', gameStateX);
     setTimeout(async () => {
+        let adminBank = 0;
         for(let p of gameStateX.players) {
             if(p.color === winCol) {
                 await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } });
+            } else {
+                adminBank += p.bet;
             }
             sendUserData(p.userId);
         }
+        if(adminBank > 0) await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminBank } });
         gameStateX.history.unshift(winCol); if(gameStateX.history.length > 15) gameStateX.history.pop();
+        
         io.emit('winnerUpdateX', { winner: {name: winCol.toUpperCase()}, winAmount: winCol === 'black' ? 'ЧЕРНОЕ' : (winCol === 'red' ? 'КРАСНОЕ' : 'ЖЕЛТОЕ') });
+        
         setTimeout(() => {
             gameStateX.players = []; gameStateX.timeLeft = 15; gameStateX.isSpinning = false;
             gameStateX.tapeLayout = generateXTape(); io.emit('syncX', gameStateX);
