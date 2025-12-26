@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
 
+// Конфигурация из переменных окружения
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
@@ -17,13 +18,15 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started` ));
+server.listen(PORT, '0.0.0.0', () => console.log(`==> Server started on port ${PORT}`));
 
+// Подключение к TON
 const tonClient = new TonClient({ 
     endpoint: 'https://toncenter.com/api/v2/jsonRPC',
     apiKey: TON_API_KEY 
 });
 
+// Схема пользователя
 const userSchema = new mongoose.Schema({
     userId: { type: String, unique: true },
     wallet: { type: String, default: null },
@@ -38,6 +41,7 @@ const User = mongoose.model('User', userSchema);
 
 mongoose.connect(MONGODB_URI);
 
+// Состояния игр
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
 let gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
@@ -45,6 +49,7 @@ let gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
 let countdownInterval = null;
 let wheelTimerInterval = null;
 
+// Функция отправки данных пользователю
 async function sendUserData(userId) {
     if (!userId) return;
     const user = await User.findOne({ userId: userId.toString() });
@@ -55,6 +60,7 @@ async function sendUserData(userId) {
     io.to(userId.toString()).emit('updateUserData', data);
 }
 
+// Генерация ленты для Slide X
 function generateXTape(winColor = null) {
     let tape = [];
     for(let i=0; i<110; i++) {
@@ -67,6 +73,7 @@ function generateXTape(winColor = null) {
 gameStateX.tapeLayout = generateXTape();
 
 io.on('connection', (socket) => {
+    // Синхронизация при входе
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
     socket.emit('syncWheel', gameStateWheel);
@@ -76,18 +83,28 @@ io.on('connection', (socket) => {
         const sId = data.id.toString(); 
         socket.userId = sId; 
         socket.join(sId);
+
         let user = await User.findOne({ userId: sId });
         if (!user) {
-            user = new User({ userId: sId, username: data.username, name: data.name, photo: data.photo, wallet: data.wallet, referredBy: data.ref && data.ref !== sId ? data.ref : null });
+            user = new User({ 
+                userId: sId, 
+                username: data.username, 
+                name: data.name, 
+                photo: data.photo, 
+                wallet: data.wallet,
+                referredBy: data.ref && data.ref !== sId ? data.ref : null
+            });
             await user.save();
         } else {
             user.wallet = data.wallet || user.wallet;
             user.username = data.username || user.username;
+            user.photo = data.photo || user.photo;
             await user.save();
         }
         sendUserData(sId);
     });
 
+    // --- ЛОГИКА SLIDE WHEEL ---
     socket.on('makeBetWheel', async (data) => {
         if (gameStateWheel.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -104,6 +121,7 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- ЛОГИКА SLIDE PVP ---
     socket.on('makeBet', async (data) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -120,6 +138,7 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- ЛОГИКА SLIDE X ---
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
@@ -132,17 +151,42 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- ФИНАНСЫ И АДМИНКА ---
     socket.on('depositConfirmed', async (amt) => {
         if(!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
         if (user && user.referredBy) {
-            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { balance: amt * 0.1, refBalance: amt * 0.1 } });
+            const refBonus = amt * 0.1;
+            await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { balance: refBonus, refBalance: refBonus } });
             sendUserData(user.referredBy);
         }
         sendUserData(socket.userId);
     });
+
+    socket.on('requestWithdraw', async (data) => {
+        if (!socket.userId) return;
+        const amount = parseFloat(data.amount);
+        if (isNaN(amount) || amount < 3) return socket.emit('withdrawStatus', { success: false, msg: "Минимум 3 TON" });
+        const user = await User.findOne({ userId: socket.userId });
+        if (!user || user.balance < amount) return socket.emit('withdrawStatus', { success: false, msg: "Недостаточно баланса" });
+        
+        user.balance -= amount; await user.save();
+        socket.emit('withdrawStatus', { success: true, msg: "Заявка принята!" });
+        sendUserData(socket.userId);
+    });
+
+    socket.on('adminAction', async (data) => {
+        const admin = await User.findOne({ userId: socket.userId });
+        if (admin && admin.username === ADMIN_USERNAME) {
+            const target = await User.findOneAndUpdate({ username: data.target.replace('@','') }, { $inc: { balance: parseFloat(data.amount) } }, { new: true });
+            if (target) sendUserData(target.userId);
+        }
+    });
 });
 
+// --- ТАЙМЕРЫ И РАНЕРЫ ИГР ---
+
+// WHEEL RUNNER
 function startWheelTimer() {
     gameStateWheel.timeLeft = 13;
     wheelTimerInterval = setInterval(() => {
@@ -174,11 +218,11 @@ async function runWheel() {
     }
 
     const winnerSliceSize = (winner.bet / totalBank) * Math.PI * 2;
-    // Центрируем сектор победителя на стрелке (1.5 PI)
     const targetAngle = (Math.PI * 1.5) - (winnerStartAngle + winnerSliceSize / 2);
 
     io.emit('startSpinWheel', { targetAngle: targetAngle });
 
+    // 13с кручение + 2с пауза на месте = 15с до уведомления
     setTimeout(async () => {
         const profit = totalBank - winner.bet;
         const winAmt = winner.bet + (profit * 0.95);
@@ -188,13 +232,15 @@ async function runWheel() {
         io.emit('winnerUpdate', { winner: winner, winAmount: winAmt });
         gameStateWheel.players.forEach(p => sendUserData(p.userId));
 
+        // 2 секунды висит окно и очистка
         setTimeout(() => {
             gameStateWheel = { players: [], bank: 0, isSpinning: false, timeLeft: 0 };
             io.emit('syncWheel', gameStateWheel);
-        }, 6000); // 2 сек пауза + 4 сек плашка
-    }, 13000);
+        }, 2000);
+    }, 15000);
 }
 
+// PVP RUNNER
 function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
@@ -214,12 +260,14 @@ async function runPvp() {
         const profit = bank - win.bet;
         const winAmt = win.bet + (profit * 0.95);
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
+        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: profit * 0.05 } });
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
 }
 
+// X RUNNER
 setInterval(() => {
     if(!gameStateX.isSpinning) {
         gameStateX.timeLeft--;
