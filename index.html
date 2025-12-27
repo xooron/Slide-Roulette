@@ -149,7 +149,7 @@
                 <div style="font-size: 24px; font-weight: 800; color: #fff;"><span id="p-ref-count">0</span></div>
                 <div style="font-size: 11px; color: var(--star); text-transform: uppercase; margin-bottom: 15px;">Приглашено друзей</div>
                 <button class="btn-gold" style="background: #1c1c1e; color: #fff; border: 1px solid #333;" onclick="copyRefLink()">ПРИГЛАСИТЬ ДРУГА</button>
-                <div style="margin-top: 15px; font-size: 12px; color: var(--hint);">Заработано: <span id="p-ref-bal" style="color: var(--star);">0.00</span> TON</div>
+                <div style="margin-top: 15px; font-size: 12px; color: var(--hint);">Заработано: <span id="p-ref-bal" style="color: var(--star);">0.00</span> TON <b>+ 10% с рефки</b></div>
             </div>
         </div>
     </div>
@@ -306,16 +306,22 @@
         });
 
         socket.on('winnerUpdate', d => {
-            document.getElementById('win-name').innerText = d.winner.name;
-            document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
-            document.getElementById('winner-popup').classList.add('show');
+            // Оповещение PVP показываем только если мы в PVP режиме
+            if(document.getElementById('pvp-view').style.display === 'flex') {
+                document.getElementById('win-name').innerText = d.winner.name;
+                document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
+                document.getElementById('winner-popup').classList.add('show');
+            }
             setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 6000);
         });
 
         socket.on('winnerUpdateX', d => {
-            document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
-            document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
-            document.getElementById('winner-popup').classList.add('show');
+            // Оповещение Slide X показываем ТОЛЬКО на странице Slide X
+            if(document.getElementById('x-view').style.display === 'flex') {
+                document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
+                document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
+                document.getElementById('winner-popup').classList.add('show');
+            }
             setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
         });
 
@@ -356,5 +362,3 @@
     </script>
 </body>
 </html>
-
-
