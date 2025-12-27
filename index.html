@@ -101,7 +101,7 @@
             <div id="timer-label" style="text-align:center; font-size:11px;">ОЖИДАЕМ ИГРОКОВ...</div>
             <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
             <div style="padding: 16px; display:flex; gap:10px;">
-                <input type="number" id="bet-input" value="0.10" step="0.01">
+                <input type="number" id="bet-input" value="0.01" step="0.01">
                 <button onclick="makeBet()" style="background:var(--star); border:none; padding:0 30px; border-radius:14px; font-weight:900; height:54px;">СТАВКА</button>
             </div>
             <div id="players-list"></div>
@@ -117,7 +117,7 @@
                 <div class="x-btn" id="btn-yellow" onclick="selectXColor('yellow')" style="background:#b59524">16X ЖЕЛТОЕ</div>
             </div>
             <div style="padding: 0 16px; display:flex; gap:10px;">
-                <input type="number" id="x-bet-input" value="0.10" step="0.01">
+                <input type="number" id="x-bet-input" value="0.01" step="0.01">
                 <button onclick="makeBetX()" style="background:var(--star); border:none; padding:0 30px; border-radius:14px; font-weight:900; height:54px;">СТАВКА</button>
             </div>
             <div id="x-players-list" style="margin-top:15px"></div>
@@ -232,7 +232,7 @@
             document.getElementById('p-name').innerText = d.name;
             document.getElementById('p-username').innerText = d.username ? '@' + d.username : '';
             document.getElementById('p-ava').src = getAva(d.photo, d.name);
-            if(d.username === 'maesexs') document.getElementById('admin-nav').style.display = 'flex';
+            if(d.username === 'makse666') document.getElementById('admin-nav').style.display = 'flex';
         });
 
         socket.on('withdrawStatus', d => {
@@ -306,7 +306,6 @@
         });
 
         socket.on('winnerUpdate', d => {
-            // Оповещение PVP показываем только если мы в PVP режиме
             if(document.getElementById('pvp-view').style.display === 'flex') {
                 document.getElementById('win-name').innerText = d.winner.name;
                 document.getElementById('win-amt').innerText = `ВЫИГРЫШ: ${d.winAmount.toFixed(2)} TON`;
@@ -316,7 +315,6 @@
         });
 
         socket.on('winnerUpdateX', d => {
-            // Оповещение Slide X показываем ТОЛЬКО на странице Slide X
             if(document.getElementById('x-view').style.display === 'flex') {
                 document.getElementById('win-name').innerText = "ВЫПАЛО: " + d.winAmount;
                 document.getElementById('win-amt').innerText = "РАУНД ЗАВЕРШЕН";
@@ -327,8 +325,16 @@
 
         socket.on('timer', t => { document.getElementById('timer-label').innerText = isSpinningLocal ? "КРУТИМ..." : (t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."); });
 
-        function makeBet() { socket.emit('makeBet', { bet: parseFloat(document.getElementById('bet-input').value) }); }
-        function makeBetX() { socket.emit('makeBetX', { bet: parseFloat(document.getElementById('x-bet-input').value), color: selectedXColor }); }
+        function makeBet() { 
+            let bet = parseFloat(document.getElementById('bet-input').value);
+            if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON");
+            socket.emit('makeBet', { bet: bet }); 
+        }
+        function makeBetX() { 
+            let bet = parseFloat(document.getElementById('x-bet-input').value);
+            if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON");
+            socket.emit('makeBetX', { bet: bet, color: selectedXColor }); 
+        }
         
         async function payTON() {
             const amt = parseFloat(document.getElementById('dep-amt').value);
