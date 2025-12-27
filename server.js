@@ -9,7 +9,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
 const TON_API_KEY = process.env.TON_API_KEY; 
-const ADMIN_USERNAME = 'makse666';
+const ADMIN_USERNAME = 'makse666'; // ИЗМЕНЕНО
 
 const app = express();
 app.use(express.static(__dirname));
@@ -46,7 +46,6 @@ async function sendUserData(userId) {
     if (!userId) return;
     const user = await User.findOne({ userId: userId.toString() });
     if (!user) return;
-    // Корректный подсчет рефералов по ID пригласившего
     const refCount = await User.countDocuments({ referredBy: userId.toString() });
     const data = user.toObject();
     data.refCount = refCount;
@@ -85,7 +84,6 @@ io.on('connection', (socket) => {
                 referredBy: data.ref && data.ref !== sId ? data.ref.toString() : null
             });
             await user.save();
-            // Обновляем данные пригласителя сразу при входе нового друга
             if (user.referredBy) sendUserData(user.referredBy);
         } else {
             user.wallet = data.wallet || user.wallet;
@@ -133,7 +131,7 @@ io.on('connection', (socket) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
-        if (user && user.balance >= betAmt && betAmt > 0) {
+        if (user && user.balance >= betAmt && betAmt >= 0.01) { // ИЗМЕНЕНО: 0.01
             user.balance -= betAmt; await user.save();
             let pRecord = gameState.players.find(p => p.userId === socket.userId);
             if (pRecord) { pRecord.bet += betAmt; } 
@@ -150,7 +148,7 @@ io.on('connection', (socket) => {
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
         const color = data.color;
-        if (user && user.balance >= betAmt && betAmt > 0) {
+        if (user && user.balance >= betAmt && betAmt >= 0.01) { // ИЗМЕНЕНО: 0.01
             user.balance -= betAmt; await user.save();
             let pRecord = gameStateX.players.find(p => p.userId === socket.userId && p.color === color);
             if (pRecord) { pRecord.bet += betAmt; } 
@@ -173,7 +171,6 @@ io.on('connection', (socket) => {
         if(!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
         if (user && user.referredBy) {
-            // Начисляем 10% пригласителю
             await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { balance: amt * 0.1, refBalance: amt * 0.1 } });
             sendUserData(user.referredBy);
         }
