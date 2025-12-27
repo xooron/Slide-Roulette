@@ -46,6 +46,7 @@ async function sendUserData(userId) {
     if (!userId) return;
     const user = await User.findOne({ userId: userId.toString() });
     if (!user) return;
+    // Корректный подсчет рефералов по ID пригласившего
     const refCount = await User.countDocuments({ referredBy: userId.toString() });
     const data = user.toObject();
     data.refCount = refCount;
@@ -81,9 +82,10 @@ io.on('connection', (socket) => {
                 name: data.name, 
                 photo: data.photo, 
                 wallet: data.wallet,
-                referredBy: data.ref && data.ref !== sId ? data.ref : null
+                referredBy: data.ref && data.ref !== sId ? data.ref.toString() : null
             });
             await user.save();
+            // Обновляем данные пригласителя сразу при входе нового друга
             if (user.referredBy) sendUserData(user.referredBy);
         } else {
             user.wallet = data.wallet || user.wallet;
@@ -171,6 +173,7 @@ io.on('connection', (socket) => {
         if(!socket.userId) return;
         const user = await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amt } }, { new: true });
         if (user && user.referredBy) {
+            // Начисляем 10% пригласителю
             await User.findOneAndUpdate({ userId: user.referredBy }, { $inc: { balance: amt * 0.1, refBalance: amt * 0.1 } });
             sendUserData(user.referredBy);
         }
@@ -238,4 +241,3 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
-
