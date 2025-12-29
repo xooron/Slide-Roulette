@@ -25,7 +25,7 @@ bot.on('polling_error', (error) => {
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-        await bot.sendMessage(chatId, "🔥 Let’s slide!", {
+        await bot.sendMessage(chatId, "Выберите действие:", {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
@@ -68,7 +68,7 @@ mongoose.connect(MONGODB_URI);
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
-let gameHistory = []; // МАССИВ ИСТОРИИ
+let gameHistory = []; 
 let countdownInterval = null;
 
 async function sendUserData(userId) {
@@ -95,7 +95,7 @@ gameStateX.tapeLayout = generateXTape();
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
-    socket.emit('historySync', gameHistory); // ОТПРАВЛЯЕМ ИСТОРИЮ ПРИ ВХОДЕ
+    socket.emit('historySync', gameHistory);
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
@@ -227,7 +227,6 @@ async function runPvp() {
     setTimeout(async () => {
         const winAmt = bank; // 0% комиссия
         
-        // ДОБАВЛЯЕМ В ИСТОРИЮ
         const historyRecord = {
             name: win.name,
             winAmount: winAmt,
@@ -238,7 +237,7 @@ async function runPvp() {
         
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
-        io.emit('historySync', gameHistory); // ОБНОВЛЯЕМ ИСТОРИЮ У ВСЕХ
+        io.emit('historySync', gameHistory);
         
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
