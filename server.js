@@ -23,7 +23,7 @@ bot.onText(/\/start/, (msg) => {
             inline_keyboard: [
                 [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
                 [{ text: "🗣 Channel", url: "https://t.me/slidetg" }],
-                [{ text: "💬 Chat", url: "https://t.me/SlideR_Manager" }]
+                [{ text: "⚙️ Support", url: "https://t.me/SlideR_Manager" }]
             ]
         }
     });
@@ -256,3 +256,4 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
+
