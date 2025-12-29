@@ -28,7 +28,7 @@ bot.on('polling_error', (error) => {
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-        await bot.sendMessage(chatId, "Выберите действие:", {
+        await bot.sendMessage(chatId, "🔥 Let’s slide!", {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
@@ -270,3 +270,4 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
+
