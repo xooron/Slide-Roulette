@@ -85,12 +85,10 @@
         input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; }
         .btn-gold { width: 100%; background: var(--gold-grad); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; }
         
-        /* ПАНЕЛЬ ПРОФИЛЯ ОБНОВЛЕННАЯ */
         .profile-panel { background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,215,0,0.2); border-radius: 28px; padding: 20px; display: flex; align-items: center; justify-content: space-between; margin: 20px; }
         .profile-panel-left { display: flex; align-items: center; gap: 15px; }
         .profile-panel-right { text-align: right; }
         .profile-avatar { width: 70px; height: 70px; border-radius: 20px; border: 2px solid var(--star); object-fit: cover; }
-        .balance-card { background: rgba(255,215,0,0.05); border-radius: 20px; padding: 15px; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 25px; border: 1px solid rgba(255,215,0,0.1); }
         .ref-section { background: var(--glass); border-radius: 20px; padding: 20px; margin: 15px; text-align: center; }
 
         .history-list { max-height: 300px; overflow-y: auto; }
@@ -135,6 +133,13 @@
             </div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
             <div id="timer-label" style="text-align:center; font-size:11px; font-weight: 800; color: var(--star);">ОЖИДАЕМ ИГРОКОВ...</div>
+            
+            <!-- ХЭШ И НОМЕР ИГРЫ -->
+            <div style="text-align:center; font-size:8px; color:var(--hint); margin: 5px 0; font-family:monospace; display:flex; justify-content:center; gap:10px; padding: 0 15px;">
+                <span id="game-hash" style="word-break:break-all; flex:1;">...</span>
+                <span id="game-id" style="color:var(--star); white-space:nowrap; font-weight:900;">Игра #...</span>
+            </div>
+
             <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
             <div style="padding: 16px; display:flex; gap:10px;">
                 <input type="number" id="bet-input" value="0.01" step="0.01">
@@ -189,12 +194,6 @@
             </div>
         </div>
         <div style="text-align: center;">
-            <div class="balance-card">
-                <div style="text-align: left;">
-                    <div class="label">Общий баланс аккаунта</div>
-                    <div class="val"><span id="p-bal">0.00</span> TON</div>
-                </div>
-            </div>
             <button class="btn-gold" style="margin: 0 20px; width: calc(100% - 40px);" onclick="openModal('withdraw-modal')">ВЫВЕСТИ TON</button>
             <div class="ref-section">
                 <div style="font-size: 14px; margin-bottom: 10px; color: var(--hint);">Реферальная система</div>
@@ -279,7 +278,6 @@
             myId = d.userId;
             const b = d.balance.toFixed(2);
             document.getElementById('bal-game').innerText = b;
-            document.getElementById('p-bal').innerText = b;
             document.getElementById('p-bal-header').innerText = b;
             document.getElementById('p-ref-bal').innerText = (d.refBalance || 0).toFixed(2);
             document.getElementById('p-ref-count').innerText = d.refCount || 0;
@@ -307,7 +305,10 @@
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
             const timerLabel = document.getElementById('timer-label');
             
-            // Логика отображения надписи статуса
+            // Обновляем хэш и ID игры
+            document.getElementById('game-hash').innerText = data.gameHash;
+            document.getElementById('game-id').innerText = "Игра #" + data.gameId;
+
             if(data.status === 'waiting') {
                 timerLabel.innerText = "ОЖИДАЕМ ИГРОКОВ...";
             } else if (data.status === 'starting') {
@@ -395,10 +396,6 @@
                 document.getElementById('winner-popup').classList.add('show');
             }
             setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
-        });
-
-        socket.on('timer', t => { 
-            // Это дублируется в sync, но оставлено для совместимости
         });
 
         function makeBet() { 
