@@ -12,19 +12,16 @@ const MNEMONIC = process.env.MNEMONIC;
 const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'makse666'; 
 
-// --- ИНИЦИАЛИЗАЦИЯ БОТА ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Обработка ошибки 409 и других ошибок подключения (чтобы сервер не вылетал)
 bot.on('polling_error', (error) => {
     if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
-        console.log("==> Внимание: Бот запущен где-то еще. Проверьте, не запущен ли он у вас на ПК!");
+        console.log("==> Внимание: Бот запущен где-то еще.");
     } else {
         console.log("==> Ошибка бота:", error.message);
     }
 });
 
-// Кнопки при /start
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
@@ -38,11 +35,10 @@ bot.onText(/\/start/, async (msg) => {
             }
         });
     } catch (e) {
-        console.log("Не удалось отправить сообщение /start (возможно, блок):", e.message);
+        console.log("Не удалось отправить сообщение /start:", e.message);
     }
 });
 
-// --- СЕРВЕРНАЯ ЧАСТЬ ---
 const app = express();
 app.use(express.static(__dirname));
 const server = http.createServer(app);
@@ -218,6 +214,7 @@ function startPvpTimer() {
     }, 1000);
 }
 
+// ОБНОВЛЕННАЯ ФУНКЦИЯ PVP (0% КОМИССИИ)
 async function runPvp() {
     gameState.isSpinning = true;
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
@@ -226,9 +223,10 @@ async function runPvp() {
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     setTimeout(async () => {
-        const winAmt = bank * 0.95;
+        // КОМИССИЯ НЕ БЕРЕТСЯ: ВЫИГРЫШ = ВЕСЬ БАНК
+        const winAmt = bank; 
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
-        await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: bank * 0.05 } });
+        // Админ ничего не получает
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
@@ -270,4 +268,3 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
-
