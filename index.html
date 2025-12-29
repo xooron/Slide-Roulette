@@ -30,38 +30,15 @@
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--tg-bg); color: white; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         
-        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 100px; overflow-y: auto; width: 100%; }
+        .page { display: none; flex-direction: column; height: 100%; padding-bottom: 80px; overflow-y: auto; width: 100%; }
         .page.active { display: flex; }
         .game-selection { padding: 20px; display: flex; flex-direction: column; gap: 15px; justify-content: center; height: 100%; }
         .game-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: center; cursor: pointer; transition: 0.2s; }
         .game-card h3 { margin: 0; color: var(--star); font-size: 24px; font-weight: 900; }
-        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); z-index: 100; }
+        .top-nav { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         #ton-connect-btn { scale: 0.8; transform-origin: left; }
         .chip { background: var(--glass); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); color: var(--star); font-weight: 800; display: flex; gap: 6px; align-items: center; }
         .btn-plus { background: var(--gold-grad); border: none; width: 30px; height: 30px; border-radius: 8px; color: #000; font-size: 20px; font-weight: 900; margin-left: 5px; cursor: pointer; }
-
-        /* КНОПКА ИСТОРИИ */
-        .btn-history {
-            position: absolute;
-            top: 70px;
-            right: 16px;
-            width: 44px;
-            height: 44px;
-            background: var(--glass);
-            border: 1px solid rgba(255, 215, 0, 0.3);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--star);
-            font-size: 20px;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            z-index: 90;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            transition: 0.3s;
-        }
-        .btn-history:active { transform: scale(0.9); }
 
         .bank-val { font-size: 38px; font-weight: 900; background: var(--gold-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 10px 0; }
         .roulette-wrap { position: relative; width: 100%; height: 100px; background: rgba(255,255,255,0.02); margin: 15px 0; overflow: hidden; display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -81,31 +58,45 @@
         .x-btn.active { border-color: white; transform: scale(1.05); }
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; }
 
-        /* ПАНЕЛЬ НАВИГАЦИИ */
-        .nav { 
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 92%; height: 68px; 
-            background: rgba(25, 25, 28, 0.7); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
-            display: flex; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; z-index: 1000; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5); padding: 0 10px;
+        /* ИСТОРИЯ PVP С НОВОЙ ИКОНКОЙ */
+        .btn-history-pvp {
+            align-self: flex-end;
+            margin-right: 16px;
+            width: 44px;
+            height: 44px;
+            background: var(--glass);
+            border: 1.5px solid rgba(255, 215, 0, 0.4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--star);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
+            transition: 0.2s;
         }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.35); font-size: 11px; font-weight: 600; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .btn-history-pvp:active { transform: scale(0.9); background: rgba(255, 215, 0, 0.1); }
+        .btn-history-pvp svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* НАВИГАЦИЯ */
+        .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; transition: 0.3s; }
         .nav-btn.active { color: var(--star); }
-        .nav-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .nav-btn.active svg { transform: translateY(-8px) scale(1.2); filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6)); }
-        .nav-btn.active::before { content: ''; position: absolute; bottom: 8px; width: 6px; height: 6px; background: var(--star); border-radius: 50%; box-shadow: 0 0 10px var(--star); animation: blobGrow 0.4s forwards; }
+        .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; }
+        .nav-btn.active svg { transform: scale(1.1); filter: drop-shadow(0 0 5px var(--star)); }
 
         input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; }
         .btn-gold { width: 100%; background: var(--gold-grad); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; }
         
-        /* МОДАЛЬНОЕ ОКНО ИСТОРИИ */
-        .history-list { max-height: 300px; overflow-y: auto; text-align: left; }
-        .h-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
-        .h-item span:first-child { color: var(--star); font-weight: bold; flex: 1; }
-        .h-item span:nth-child(2) { color: #aaa; margin: 0 10px; }
-        .h-item span:last-child { color: #44ff44; font-weight: bold; }
+        .profile-panel { background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,215,0,0.2); border-radius: 28px; padding: 20px; display: flex; align-items: center; gap: 15px; margin: 20px; }
+        .profile-avatar { width: 70px; height: 70px; border-radius: 20px; border: 2px solid var(--star); object-fit: cover; }
+        .balance-card { background: rgba(255,215,0,0.05); border-radius: 20px; padding: 15px; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 25px; border: 1px solid rgba(255,215,0,0.1); }
+        .ref-section { background: var(--glass); border-radius: 20px; padding: 20px; margin: 15px; text-align: center; }
+
+        .history-list { max-height: 300px; overflow-y: auto; }
+        .h-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; text-align: left;}
 
         #winner-popup { position: fixed; bottom: -120%; left: 5%; width: 90%; background: rgba(20, 20, 25, 0.95); border: 2px solid var(--star); padding: 25px; border-radius: 24px; z-index: 6000; transition: 0.6s; text-align: center; }
-        #winner-popup.show { bottom: 100px; }
+        #winner-popup.show { bottom: 90px; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
     </style>
@@ -127,16 +118,21 @@
             <div class="chip"><span id="bal-game">0.00</span> TON <button class="btn-plus" onclick="openModal('buy-modal')">+</button></div>
         </div>
         
-        <!-- КНОПКА ИСТОРИИ -->
-        <button class="btn-history" onclick="openModal('history-modal')">⏳</button>
-
         <div id="game-menu-view" class="game-selection">
             <div class="game-card" onclick="showSubGame('pvp')"><h3>SLIDE PVP</h3></div>
             <div class="game-card" onclick="showSubGame('x')"><h3>SLIDE X</h3></div>
         </div>
 
         <div id="pvp-view" style="display:none; flex-direction:column;">
-            <div style="padding: 10px; color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
+            <div style="padding: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
+                <!-- КНОПКА ИСТОРИИ С SVG ИКОНКОЙ -->
+                <div class="btn-history-pvp" onclick="openModal('history-modal')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
             <div id="timer-label" style="text-align:center; font-size:11px;">ОЖИДАЕМ ИГРОКОВ...</div>
             <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
@@ -165,21 +161,17 @@
         </div>
     </div>
 
-    <!-- МОДАЛКА ИСТОРИИ -->
     <div id="history-modal" class="modal">
         <div class="modal-content">
-            <h3 style="color:var(--star); margin-top:0;">История игр</h3>
-            <div id="history-list" class="history-list">
-                <!-- Сюда вставится история -->
-                <p style="color:var(--hint)">История игр пуста...</p>
-            </div>
+            <h3 style="color:var(--star);">PVP История</h3>
+            <div id="history-list" class="history-list"></div>
             <br>
             <button class="btn-gold" onclick="closeModal('history-modal')">ЗАКРЫТЬ</button>
         </div>
     </div>
 
     <div id="shop-page" class="page">
-        <div style="padding: 100px 20px; text-align:center;"><h2 style="color:var(--star)">МАГАЗИН</h2><p style="color:var(--hint)">Раздел будет доступен когда хорон будет жив.</p></div>
+        <div style="padding: 100px 20px; text-align:center;"><h2 style="color:var(--star)">МАГАЗИН</h2><p style="color:var(--hint)">Раздел будет доступен в обновлении</p></div>
     </div>
 
     <div id="profile-page" class="page">
@@ -289,19 +281,17 @@
             if(d.username === 'makse666') document.getElementById('admin-nav').style.display = 'flex';
         });
 
-        // СИНХРОНИЗАЦИЯ ИСТОРИИ
         socket.on('historySync', data => {
             const hList = document.getElementById('history-list');
             if(data.length === 0) {
-                hList.innerHTML = '<p style="color:var(--hint)">История пуста...</p>';
+                hList.innerHTML = '<p style="color:var(--hint)">История игр пуста...</p>';
             } else {
                 hList.innerHTML = data.map(h => `
                     <div class="h-item">
                         <span>${h.name}</span>
                         <span>${h.chance}%</span>
                         <span>${h.winAmount.toFixed(2)} TON</span>
-                    </div>
-                `).join('');
+                    </div>`).join('');
             }
         });
 
