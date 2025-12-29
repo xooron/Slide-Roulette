@@ -12,13 +12,13 @@ const MNEMONIC = process.env.MNEMONIC;
 const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'makse666'; 
 
-// Инициализация Telegram Бота
+// Инициализация бота
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Обработка команды /start - Кнопки как на скриншоте
+// Ответ на /start с панелью кнопок как на фото
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "Выберите действие:", {
+    bot.sendMessage(chatId, "Добро пожаловать в Slide Roulette!", {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
