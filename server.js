@@ -25,7 +25,7 @@ bot.on('polling_error', (error) => {
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-        await bot.sendMessage(chatId, "Выберите действие:", {
+        await bot.sendMessage(chatId, "🔥 Let’s slide!", {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
@@ -64,12 +64,34 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// Схема для сохранения истории PVP в базе данных
+const historySchema = new mongoose.Schema({
+    name: String,
+    winAmount: Number,
+    chance: String,
+    date: { type: Date, default: Date.now }
+});
+const PvpHistory = mongoose.model('PvpHistory', historySchema);
+
 mongoose.connect(MONGODB_URI);
 
-let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
+let gameState = { 
+    players: [], 
+    bank: 0, 
+    status: 'waiting', // waiting, starting, spinning, stopped
+    timeLeft: 0, 
+    tapeLayout: [] 
+};
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
 let gameHistory = []; 
 let countdownInterval = null;
+
+// Загрузка истории из БД при старте сервера
+async function loadHistory() {
+    const items = await PvpHistory.find().sort({ date: -1 }).limit(20);
+    gameHistory = items.map(i => ({ name: i.name, winAmount: i.winAmount, chance: i.chance }));
+}
+loadHistory();
 
 async function sendUserData(userId) {
     if (!userId) return;
@@ -158,7 +180,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('makeBet', async (data) => {
-        if (gameState.isSpinning || !socket.userId) return;
+        if (gameState.status === 'spinning' || gameState.status === 'stopped' || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
         if (user && user.balance >= betAmt && betAmt >= 0.01) {
@@ -168,7 +190,12 @@ io.on('connection', (socket) => {
             else { gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt }); }
             gameState.bank += betAmt;
             sendUserData(socket.userId);
-            if (gameState.players.length >= 2 && !countdownInterval) startPvpTimer();
+            
+            // Если игроков стало двое и мы в ожидании - запускаем таймер
+            if (gameState.players.length >= 2 && gameState.status === 'waiting' && !countdownInterval) {
+                gameState.status = 'starting';
+                startPvpTimer();
+            }
             io.emit('sync', gameState);
         }
     });
@@ -211,28 +238,45 @@ io.on('connection', (socket) => {
 function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
-        gameState.timeLeft--; io.emit('timer', gameState.timeLeft);
-        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runPvp(); }
+        gameState.timeLeft--; 
+        io.emit('sync', gameState);
+        if (gameState.timeLeft <= 0) { 
+            clearInterval(countdownInterval); 
+            countdownInterval = null; 
+            runPvp(); 
+        }
     }, 1000);
 }
 
 async function runPvp() {
-    gameState.isSpinning = true;
+    gameState.status = 'spinning';
+    io.emit('sync', gameState);
+
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
     for (let p of gameState.players) { cur += p.bet; if (rand <= cur) { win = p; break; } }
+    
     let tape = []; while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
-    gameState.tapeLayout = tape; io.emit('startSpin', gameState);
+    gameState.tapeLayout = tape; 
+    io.emit('startSpin', gameState);
     
     setTimeout(async () => {
+        gameState.status = 'stopped';
+        io.emit('sync', gameState);
+
         const winAmt = bank; // 0% комиссия
-        
-        const historyRecord = {
+        const chanceVal = ((win.bet / bank) * 100).toFixed(1);
+
+        // Сохранение в БД
+        const newHistoryItem = new PvpHistory({
             name: win.name,
             winAmount: winAmt,
-            chance: ((win.bet / bank) * 100).toFixed(1)
-        };
-        gameHistory.unshift(historyRecord);
+            chance: chanceVal
+        });
+        await newHistoryItem.save();
+
+        // Обновление локального массива истории
+        gameHistory.unshift({ name: win.name, winAmount: winAmt, chance: chanceVal });
         if (gameHistory.length > 20) gameHistory.pop();
         
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
@@ -240,7 +284,12 @@ async function runPvp() {
         io.emit('historySync', gameHistory);
         
         gameState.players.forEach(p => sendUserData(p.userId));
-        setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
+        
+        // Сброс через 5 секунд после остановки
+        setTimeout(() => { 
+            gameState = { players: [], bank: 0, status: 'waiting', timeLeft: 0, tapeLayout: [] }; 
+            io.emit('sync', gameState); 
+        }, 5000);
     }, 11000);
 }
 
