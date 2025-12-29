@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const crypto = require('crypto'); // Добавлено для хэша
+const crypto = require('crypto');
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
 const TelegramBot = require('node-telegram-bot-api');
@@ -30,7 +30,7 @@ bot.on('polling_error', (error) => {
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     try {
-        await bot.sendMessage(chatId, "🔥 Let’s slide!", {
+        await bot.sendMessage(chatId, "Выберите действие:", {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
@@ -127,17 +127,11 @@ io.on('connection', (socket) => {
     socket.on('auth', async (data) => {
         if (!data.id) return;
         const sId = data.id.toString(); 
-        socket.userId = sId; 
-        socket.join(sId);
-
+        socket.userId = sId; socket.join(sId);
         let user = await User.findOne({ userId: sId });
         if (!user) {
             user = new User({ 
-                userId: sId, 
-                username: data.username, 
-                name: data.name, 
-                photo: data.photo, 
-                wallet: data.wallet,
+                userId: sId, username: data.username, name: data.name, photo: data.photo, wallet: data.wallet,
                 referredBy: data.ref && data.ref !== sId ? data.ref.toString() : null
             });
             await user.save();
@@ -154,30 +148,20 @@ io.on('connection', (socket) => {
         if (!socket.userId) return;
         const amount = parseFloat(data.amount);
         if (isNaN(amount) || amount < 3) return socket.emit('withdrawStatus', { success: false, msg: "Минимум 3 TON" });
-
         const user = await User.findOne({ userId: socket.userId });
         if (!user || user.balance < amount) return socket.emit('withdrawStatus', { success: false, msg: "Недостаточно баланса" });
         if (!user.wallet) return socket.emit('withdrawStatus', { success: false, msg: "Кошелек не подключен" });
-
         try {
-            const commission = amount * 0.01;
-            const finalAmount = (amount - commission).toFixed(4);
-            user.balance -= amount;
-            await user.save();
-
+            const commission = amount * 0.01; const finalAmount = (amount - commission).toFixed(4);
+            user.balance -= amount; await user.save();
             if (MNEMONIC) {
                 const key = await mnemonicToWalletKey(MNEMONIC.split(" "));
                 const walletContract = WalletContractV4.create({ publicKey: key.publicKey, workchain: 0 });
                 const wallet = tonClient.open(walletContract);
-                const transfer = wallet.createTransfer({
-                    seqno: await wallet.getSeqno(),
-                    secretKey: key.secretKey,
-                    messages: [internal({ to: user.wallet, value: toNano(finalAmount), bounce: false })]
-                });
+                const transfer = wallet.createTransfer({ seqno: await wallet.getSeqno(), secretKey: key.secretKey, messages: [internal({ to: user.wallet, value: toNano(finalAmount), bounce: false })] });
                 await wallet.send(transfer);
             }
-            socket.emit('withdrawStatus', { success: true, msg: "Выплата отправлена!" });
-            sendUserData(socket.userId);
+            socket.emit('withdrawStatus', { success: true, msg: "Выплата отправлена!" }); sendUserData(socket.userId);
         } catch (e) {
             await User.findOneAndUpdate({ userId: socket.userId }, { $inc: { balance: amount } });
             socket.emit('withdrawStatus', { success: false, msg: "Ошибка сети TON." });
@@ -193,12 +177,9 @@ io.on('connection', (socket) => {
             let pRecord = gameState.players.find(p => p.userId === socket.userId);
             if (pRecord) { pRecord.bet += betAmt; } 
             else { gameState.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt }); }
-            gameState.bank += betAmt;
-            sendUserData(socket.userId);
-            
+            gameState.bank += betAmt; sendUserData(socket.userId);
             if (gameState.players.length >= 2 && gameState.status === 'waiting' && !countdownInterval) {
-                gameState.status = 'starting';
-                startPvpTimer();
+                gameState.status = 'starting'; startPvpTimer();
             }
             io.emit('sync', gameState);
         }
@@ -207,15 +188,13 @@ io.on('connection', (socket) => {
     socket.on('makeBetX', async (data) => {
         if (gameStateX.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
-        const betAmt = parseFloat(data.bet);
-        const color = data.color;
+        const betAmt = parseFloat(data.bet); const color = data.color;
         if (user && user.balance >= betAmt && betAmt >= 0.01) {
             user.balance -= betAmt; await user.save();
             let pRecord = gameStateX.players.find(p => p.userId === socket.userId && p.color === color);
             if (pRecord) { pRecord.bet += betAmt; } 
             else { gameStateX.players.push({ userId: socket.userId, name: user.name, photo: user.photo, bet: betAmt, color: color }); }
-            sendUserData(socket.userId);
-            io.emit('syncX', gameStateX);
+            sendUserData(socket.userId); io.emit('syncX', gameStateX);
         }
     });
 
@@ -242,96 +221,55 @@ io.on('connection', (socket) => {
 function startPvpTimer() {
     gameState.timeLeft = 15;
     countdownInterval = setInterval(() => {
-        gameState.timeLeft--; 
-        io.emit('sync', gameState);
-        if (gameState.timeLeft <= 0) { 
-            clearInterval(countdownInterval); 
-            countdownInterval = null; 
-            runPvp(); 
-        }
+        gameState.timeLeft--; io.emit('sync', gameState);
+        if (gameState.timeLeft <= 0) { clearInterval(countdownInterval); countdownInterval = null; runPvp(); }
     }, 1000);
 }
 
 async function runPvp() {
-    gameState.status = 'spinning';
-    io.emit('sync', gameState);
-
+    gameState.status = 'spinning'; io.emit('sync', gameState);
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
     for (let p of gameState.players) { cur += p.bet; if (rand <= cur) { win = p; break; } }
-    
     let tape = []; while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
-    gameState.tapeLayout = tape; 
-    io.emit('startSpin', gameState);
+    gameState.tapeLayout = tape; io.emit('startSpin', gameState);
     
     setTimeout(async () => {
-        gameState.status = 'stopped';
-        io.emit('sync', gameState);
-
-        const winAmt = bank; 
-        const chanceVal = ((win.bet / bank) * 100).toFixed(1);
-
-        const newHistoryItem = new PvpHistory({
-            name: win.name,
-            winAmount: winAmt,
-            chance: chanceVal
-        });
-        await newHistoryItem.save();
-
-        gameHistory.unshift({ name: win.name, winAmount: winAmt, chance: chanceVal });
+        gameState.status = 'stopped'; io.emit('sync', gameState);
+        const winAmt = bank; const chanceVal = ((win.bet / bank) * 100).toFixed(1);
+        const newHistoryItem = new PvpHistory({ name: win.name, winAmount: winAmt, chance: chanceVal });
+        await newHistoryItem.save(); gameHistory.unshift({ name: win.name, winAmount: winAmt, chance: chanceVal });
         if (gameHistory.length > 20) gameHistory.pop();
-        
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
-        io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
-        io.emit('historySync', gameHistory);
-        
+        io.emit('winnerUpdate', { winner: win, winAmount: winAmt }); io.emit('historySync', gameHistory);
         gameState.players.forEach(p => sendUserData(p.userId));
         
         setTimeout(() => { 
-            // Сброс и ОБНОВЛЕНИЕ ХЭША И НОМЕРА ИГРЫ
-            gameState = { 
-                players: [], 
-                bank: 0, 
-                status: 'waiting', 
-                timeLeft: 0, 
-                tapeLayout: [], 
-                gameId: gameState.gameId + 1, 
-                gameHash: generateRandomHash() 
-            }; 
+            gameState = { players: [], bank: 0, status: 'waiting', timeLeft: 0, tapeLayout: [], gameId: gameState.gameId + 1, gameHash: generateRandomHash() }; 
             io.emit('sync', gameState); 
         }, 5000);
     }, 11000);
 }
 
 setInterval(() => {
-    if(!gameStateX.isSpinning) {
-        gameStateX.timeLeft--;
-        if(gameStateX.timeLeft <= 0) runX();
-        io.emit('syncX', gameStateX);
-    }
+    if(!gameStateX.isSpinning) { gameStateX.timeLeft--; if(gameStateX.timeLeft <= 0) runX(); io.emit('syncX', gameStateX); }
 }, 1000);
 
 async function runX() {
     gameStateX.isSpinning = true;
     let r = Math.random(), winCol = r < 0.48 ? 'black' : (r < 0.96 ? 'red' : 'yellow');
     let mult = winCol === 'yellow' ? 16 : 2;
-    gameStateX.tapeLayout = generateXTape(winCol);
-    io.emit('startSpinX', gameStateX);
+    gameStateX.tapeLayout = generateXTape(winCol); io.emit('startSpinX', gameStateX);
     setTimeout(async () => {
         let adminBank = 0;
         for(let p of gameStateX.players) {
-            if(p.color === winCol) {
-                await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } });
-            } else {
-                adminBank += p.bet;
-            }
+            if(p.color === winCol) { await User.findOneAndUpdate({ userId: p.userId }, { $inc: { balance: p.bet * mult } }); } 
+            else { adminBank += p.bet; }
             sendUserData(p.userId);
         }
         if(adminBank > 0) await User.findOneAndUpdate({ username: ADMIN_USERNAME }, { $inc: { balance: adminBank } });
         gameStateX.history.unshift(winCol); if(gameStateX.history.length > 15) gameStateX.history.pop();
-        
         io.emit('winnerUpdateX', { winner: {name: winCol.toUpperCase()}, winAmount: winCol === 'black' ? 'ЧЕРНОЕ' : (winCol === 'red' ? 'КРАСНОЕ' : 'ЖЕЛТОЕ') });
-        
         setTimeout(() => {
             gameStateX.players = []; gameStateX.timeLeft = 15; gameStateX.isSpinning = false;
             gameStateX.tapeLayout = generateXTape(); io.emit('syncX', gameStateX);
