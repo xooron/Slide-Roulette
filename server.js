@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const crypto = require('crypto'); // Добавлено для хэша
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
 const TelegramBot = require('node-telegram-bot-api');
@@ -13,6 +14,10 @@ const TON_API_KEY = process.env.TON_API_KEY;
 const ADMIN_USERNAME = 'makse666'; 
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
+function generateRandomHash() {
+    return crypto.randomBytes(32).toString('hex');
+}
 
 bot.on('polling_error', (error) => {
     if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
@@ -64,7 +69,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Схема для сохранения истории PVP в базе данных
 const historySchema = new mongoose.Schema({
     name: String,
     winAmount: Number,
@@ -78,15 +82,16 @@ mongoose.connect(MONGODB_URI);
 let gameState = { 
     players: [], 
     bank: 0, 
-    status: 'waiting', // waiting, starting, spinning, stopped
+    status: 'waiting', 
     timeLeft: 0, 
-    tapeLayout: [] 
+    tapeLayout: [],
+    gameId: 1, 
+    gameHash: generateRandomHash()
 };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
 let gameHistory = []; 
 let countdownInterval = null;
 
-// Загрузка истории из БД при старте сервера
 async function loadHistory() {
     const items = await PvpHistory.find().sort({ date: -1 }).limit(20);
     gameHistory = items.map(i => ({ name: i.name, winAmount: i.winAmount, chance: i.chance }));
@@ -191,7 +196,6 @@ io.on('connection', (socket) => {
             gameState.bank += betAmt;
             sendUserData(socket.userId);
             
-            // Если игроков стало двое и мы в ожидании - запускаем таймер
             if (gameState.players.length >= 2 && gameState.status === 'waiting' && !countdownInterval) {
                 gameState.status = 'starting';
                 startPvpTimer();
@@ -264,10 +268,9 @@ async function runPvp() {
         gameState.status = 'stopped';
         io.emit('sync', gameState);
 
-        const winAmt = bank; // 0% комиссия
+        const winAmt = bank; 
         const chanceVal = ((win.bet / bank) * 100).toFixed(1);
 
-        // Сохранение в БД
         const newHistoryItem = new PvpHistory({
             name: win.name,
             winAmount: winAmt,
@@ -275,7 +278,6 @@ async function runPvp() {
         });
         await newHistoryItem.save();
 
-        // Обновление локального массива истории
         gameHistory.unshift({ name: win.name, winAmount: winAmt, chance: chanceVal });
         if (gameHistory.length > 20) gameHistory.pop();
         
@@ -285,9 +287,17 @@ async function runPvp() {
         
         gameState.players.forEach(p => sendUserData(p.userId));
         
-        // Сброс через 5 секунд после остановки
         setTimeout(() => { 
-            gameState = { players: [], bank: 0, status: 'waiting', timeLeft: 0, tapeLayout: [] }; 
+            // Сброс и ОБНОВЛЕНИЕ ХЭША И НОМЕРА ИГРЫ
+            gameState = { 
+                players: [], 
+                bank: 0, 
+                status: 'waiting', 
+                timeLeft: 0, 
+                tapeLayout: [], 
+                gameId: gameState.gameId + 1, 
+                gameHash: generateRandomHash() 
+            }; 
             io.emit('sync', gameState); 
         }, 5000);
     }, 11000);
