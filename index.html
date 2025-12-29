@@ -58,7 +58,6 @@
         .x-btn.active { border-color: white; transform: scale(1.05); }
         .player-row { display:flex; align-items:center; background:var(--glass); padding:12px; margin: 0 16px 8px 16px; border-radius:14px; }
 
-        /* ИСТОРИЯ PVP С НОВОЙ ИКОНКОЙ */
         .btn-history-pvp {
             align-self: flex-end;
             margin-right: 16px;
@@ -77,7 +76,6 @@
         .btn-history-pvp:active { transform: scale(0.9); background: rgba(255, 215, 0, 0.1); }
         .btn-history-pvp svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
-        /* НАВИГАЦИЯ */
         .nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(10,10,12,0.98); display: flex; border-top: 1px solid rgba(255,255,255,0.1); z-index: 1000; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--hint); font-size: 11px; gap: 4px; transition: 0.3s; }
         .nav-btn.active { color: var(--star); }
@@ -87,7 +85,10 @@
         input[type="number"], input[type="text"] { width: 100%; background: #161618; border: 1px solid #2c2c2e; color: white; padding: 15px; border-radius: 14px; font-size: 17px; margin-bottom: 10px; text-align: center; }
         .btn-gold { width: 100%; background: var(--gold-grad); border: none; padding: 16px; border-radius: 14px; font-weight: bold; color: black; cursor: pointer; }
         
-        .profile-panel { background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,215,0,0.2); border-radius: 28px; padding: 20px; display: flex; align-items: center; gap: 15px; margin: 20px; }
+        /* ПАНЕЛЬ ПРОФИЛЯ ОБНОВЛЕННАЯ */
+        .profile-panel { background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,215,0,0.2); border-radius: 28px; padding: 20px; display: flex; align-items: center; justify-content: space-between; margin: 20px; }
+        .profile-panel-left { display: flex; align-items: center; gap: 15px; }
+        .profile-panel-right { text-align: right; }
         .profile-avatar { width: 70px; height: 70px; border-radius: 20px; border: 2px solid var(--star); object-fit: cover; }
         .balance-card { background: rgba(255,215,0,0.05); border-radius: 20px; padding: 15px; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 25px; border: 1px solid rgba(255,215,0,0.1); }
         .ref-section { background: var(--glass); border-radius: 20px; padding: 20px; margin: 15px; text-align: center; }
@@ -126,7 +127,6 @@
         <div id="pvp-view" style="display:none; flex-direction:column;">
             <div style="padding: 10px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="color: var(--star);" onclick="showSubGame('menu')">← НАЗАД</div>
-                <!-- КНОПКА ИСТОРИИ С SVG ИКОНКОЙ -->
                 <div class="btn-history-pvp" onclick="openModal('history-modal')">
                     <svg viewBox="0 0 24 24">
                         <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -134,7 +134,7 @@
                 </div>
             </div>
             <div class="bank-val" id="bank-val">0.00 TON</div>
-            <div id="timer-label" style="text-align:center; font-size:11px;">ОЖИДАЕМ ИГРОКОВ...</div>
+            <div id="timer-label" style="text-align:center; font-size:11px; font-weight: 800; color: var(--star);">ОЖИДАЕМ ИГРОКОВ...</div>
             <div class="roulette-wrap"><div class="pointer"></div><div id="tape" class="tape slow-drift"></div></div>
             <div style="padding: 16px; display:flex; gap:10px;">
                 <input type="number" id="bet-input" value="0.01" step="0.01">
@@ -176,16 +176,22 @@
 
     <div id="profile-page" class="page">
         <div class="profile-panel">
-            <img id="p-ava" src="" class="profile-avatar" onerror="fixImg(this)">
-            <div class="profile-info">
-                <h2 id="p-name">Загрузка...</h2>
-                <span id="p-username">@username</span>
+            <div class="profile-panel-left">
+                <img id="p-ava" src="" class="profile-avatar" onerror="fixImg(this)">
+                <div class="profile-info">
+                    <h2 id="p-name">Загрузка...</h2>
+                    <span id="p-username">@username</span>
+                </div>
+            </div>
+            <div class="profile-panel-right">
+                <div style="font-size: 10px; color: var(--hint); margin-bottom: 2px;">Баланс</div>
+                <div style="color: var(--star); font-weight: 900; font-size: 16px;"><span id="p-bal-header">0.00</span> TON</div>
             </div>
         </div>
         <div style="text-align: center;">
             <div class="balance-card">
                 <div style="text-align: left;">
-                    <div class="label">Ваш баланс</div>
+                    <div class="label">Общий баланс аккаунта</div>
                     <div class="val"><span id="p-bal">0.00</span> TON</div>
                 </div>
             </div>
@@ -271,8 +277,10 @@
 
         socket.on('updateUserData', d => {
             myId = d.userId;
-            document.getElementById('bal-game').innerText = d.balance.toFixed(2);
-            document.getElementById('p-bal').innerText = d.balance.toFixed(2);
+            const b = d.balance.toFixed(2);
+            document.getElementById('bal-game').innerText = b;
+            document.getElementById('p-bal').innerText = b;
+            document.getElementById('p-bal-header').innerText = b;
             document.getElementById('p-ref-bal').innerText = (d.refBalance || 0).toFixed(2);
             document.getElementById('p-ref-count').innerText = d.refCount || 0;
             document.getElementById('p-name').innerText = d.name;
@@ -297,9 +305,22 @@
 
         socket.on('sync', data => {
             document.getElementById('bank-val').innerText = data.bank.toFixed(2) + " TON";
+            const timerLabel = document.getElementById('timer-label');
+            
+            // Логика отображения надписи статуса
+            if(data.status === 'waiting') {
+                timerLabel.innerText = "ОЖИДАЕМ ИГРОКОВ...";
+            } else if (data.status === 'starting') {
+                timerLabel.innerText = `СТАРТ ЧЕРЕЗ ${data.timeLeft} СЕК`;
+            } else if (data.status === 'spinning') {
+                timerLabel.innerText = "КРУТИТСЯ...";
+            } else if (data.status === 'stopped') {
+                timerLabel.innerText = "СТОП!";
+            }
+
             const tape = document.getElementById('tape');
             if(!isSpinningLocal) {
-                if(data.isSpinning) {
+                if(data.status === 'spinning') {
                    isSpinningLocal = true;
                    renderTape(tape, data.tapeLayout, false);
                    const offset = (90 * 85) - (window.innerWidth / 2) + 45;
@@ -342,7 +363,7 @@
 
         socket.on('startSpin', (data) => {
             isSpinningLocal = true;
-            document.getElementById('timer-label').innerText = "КРУТИМ...";
+            document.getElementById('timer-label').innerText = "КРУТИТСЯ...";
             const tape = document.getElementById('tape');
             renderTape(tape, data.tapeLayout, false);
             const offset = (90 * 85) - (window.innerWidth / 2) + 45;
@@ -376,7 +397,9 @@
             setTimeout(() => { isSpinningLocal = false; document.getElementById('winner-popup').classList.remove('show'); }, 4000);
         });
 
-        socket.on('timer', t => { document.getElementById('timer-label').innerText = isSpinningLocal ? "КРУТИМ..." : (t > 0 ? `СТАРТ ЧЕРЕЗ ${t} СЕК` : "КРУТИМ..."); });
+        socket.on('timer', t => { 
+            // Это дублируется в sync, но оставлено для совместимости
+        });
 
         function makeBet() { 
             let bet = parseFloat(document.getElementById('bet-input').value);
