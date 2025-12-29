@@ -68,6 +68,7 @@ mongoose.connect(MONGODB_URI);
 
 let gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] };
 let gameStateX = { players: [], timeLeft: 15, isSpinning: false, history: [], tapeLayout: [] };
+let gameHistory = []; // МАССИВ ИСТОРИИ
 let countdownInterval = null;
 
 async function sendUserData(userId) {
@@ -94,6 +95,7 @@ gameStateX.tapeLayout = generateXTape();
 io.on('connection', (socket) => {
     socket.emit('sync', gameState);
     socket.emit('syncX', gameStateX);
+    socket.emit('historySync', gameHistory); // ОТПРАВЛЯЕМ ИСТОРИЮ ПРИ ВХОДЕ
 
     socket.on('auth', async (data) => {
         if (!data.id) return;
@@ -214,7 +216,6 @@ function startPvpTimer() {
     }, 1000);
 }
 
-// ОБНОВЛЕННАЯ ФУНКЦИЯ PVP (0% КОМИССИИ)
 async function runPvp() {
     gameState.isSpinning = true;
     let bank = gameState.bank, rand = Math.random() * bank, cur = 0, win = gameState.players[0];
@@ -222,12 +223,23 @@ async function runPvp() {
     let tape = []; while(tape.length < 110) gameState.players.forEach(p => tape.push({ photo: p.photo }));
     tape = tape.sort(() => Math.random() - 0.5); tape[85] = { photo: win.photo, name: win.name };
     gameState.tapeLayout = tape; io.emit('startSpin', gameState);
+    
     setTimeout(async () => {
-        // КОМИССИЯ НЕ БЕРЕТСЯ: ВЫИГРЫШ = ВЕСЬ БАНК
-        const winAmt = bank; 
+        const winAmt = bank; // 0% комиссия
+        
+        // ДОБАВЛЯЕМ В ИСТОРИЮ
+        const historyRecord = {
+            name: win.name,
+            winAmount: winAmt,
+            chance: ((win.bet / bank) * 100).toFixed(1)
+        };
+        gameHistory.unshift(historyRecord);
+        if (gameHistory.length > 20) gameHistory.pop();
+        
         await User.findOneAndUpdate({ userId: win.userId }, { $inc: { balance: winAmt } });
-        // Админ ничего не получает
         io.emit('winnerUpdate', { winner: win, winAmount: winAmt });
+        io.emit('historySync', gameHistory); // ОБНОВЛЯЕМ ИСТОРИЮ У ВСЕХ
+        
         gameState.players.forEach(p => sendUserData(p.userId));
         setTimeout(() => { gameState = { players: [], bank: 0, isSpinning: false, timeLeft: 0, tapeLayout: [] }; io.emit('sync', gameState); }, 3000);
     }, 11000);
