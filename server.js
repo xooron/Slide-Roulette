@@ -4,12 +4,30 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
+const TelegramBot = require('node-telegram-bot-api'); // ДОБАВЛЕНО
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
 const TON_API_KEY = process.env.TON_API_KEY; 
-const ADMIN_USERNAME = 'makse666'; // ИЗМЕНЕНО
+const ADMIN_USERNAME = 'makse666'; 
+
+// Инициализация Telegram Бота
+const bot = new TelegramBot(BOT_TOKEN, { polling: true }); // ДОБАВЛЕНО
+
+// Обработка команды /start
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, "Добро пожаловать в Slide Roulette! Выберите действие:", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
+                [{ text: "🗣 Channel", url: "https://t.me/slidetg" }],
+                [{ text: "💬 Chat", url: "https://t.me/SlideR_Manager" }]
+            ]
+        }
+    });
+});
 
 const app = express();
 app.use(express.static(__dirname));
@@ -131,7 +149,7 @@ io.on('connection', (socket) => {
         if (gameState.isSpinning || !socket.userId) return;
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
-        if (user && user.balance >= betAmt && betAmt >= 0.01) { // ИЗМЕНЕНО: 0.01
+        if (user && user.balance >= betAmt && betAmt >= 0.01) { 
             user.balance -= betAmt; await user.save();
             let pRecord = gameState.players.find(p => p.userId === socket.userId);
             if (pRecord) { pRecord.bet += betAmt; } 
@@ -148,7 +166,7 @@ io.on('connection', (socket) => {
         const user = await User.findOne({ userId: socket.userId });
         const betAmt = parseFloat(data.bet);
         const color = data.color;
-        if (user && user.balance >= betAmt && betAmt >= 0.01) { // ИЗМЕНЕНО: 0.01
+        if (user && user.balance >= betAmt && betAmt >= 0.01) { 
             user.balance -= betAmt; await user.save();
             let pRecord = gameStateX.players.find(p => p.userId === socket.userId && p.color === color);
             if (pRecord) { pRecord.bet += betAmt; } 
