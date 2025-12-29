@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
-const TelegramBot = require('node-telegram-bot-api'); // Библиотека для бота
+const TelegramBot = require('node-telegram-bot-api');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -12,23 +12,37 @@ const MNEMONIC = process.env.MNEMONIC;
 const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'makse666'; 
 
-// Инициализация бота
+// --- ИНИЦИАЛИЗАЦИЯ БОТА ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Ответ на /start с панелью кнопок как на фото
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "Добро пожаловать в Slide Roulette!", {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
-                [{ text: "🗣 Channel", url: "https://t.me/slidetg" }],
-                [{ text: "⚙️ Support", url: "https://t.me/SlideR_Manager" }]
-            ]
-        }
-    });
+// Обработка ошибки 409 и других ошибок подключения (чтобы сервер не вылетал)
+bot.on('polling_error', (error) => {
+    if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
+        console.log("==> Внимание: Бот запущен где-то еще. Проверьте, не запущен ли он у вас на ПК!");
+    } else {
+        console.log("==> Ошибка бота:", error.message);
+    }
 });
 
+// Кнопки при /start
+bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
+    try {
+        await bot.sendMessage(chatId, "Выберите действие:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🤘 Play", url: "https://t.me/slideroulettebot/SlideRoulette" }],
+                    [{ text: "🗣 Channel", url: "https://t.me/slidetg" }],
+                    [{ text: "⚙️ Support", url: "https://t.me/SlideR_Manager" }]
+                ]
+            }
+        });
+    } catch (e) {
+        console.log("Не удалось отправить сообщение /start (возможно, блок):", e.message);
+    }
+});
+
+// --- СЕРВЕРНАЯ ЧАСТЬ ---
 const app = express();
 app.use(express.static(__dirname));
 const server = http.createServer(app);
@@ -256,4 +270,3 @@ async function runX() {
         }, 3000);
     }, 11000);
 }
-
