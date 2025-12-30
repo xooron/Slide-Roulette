@@ -3,7 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const axios = require('axios'); // Добавлено для платежей
+const axios = require('axios'); 
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
 const TelegramBot = require('node-telegram-bot-api');
@@ -14,7 +14,7 @@ const MNEMONIC = process.env.MNEMONIC;
 const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'makse666'; 
 
-// --- НАСТРОЙКИ ПЛАТЕЖЕЙ (Получите токены в ботах @CryptoBot и @xRocket) ---
+// --- НАСТРОЙКИ ПЛАТЕЖЕЙ ---
 const CRYPTO_BOT_TOKEN = '508626:AA48pwvt1u5nV9CDe7pQHuyHOJIBpxzfjsB'; 
 const XROCKET_TOKEN = '82dfecf916b206243fa767d40';
 
