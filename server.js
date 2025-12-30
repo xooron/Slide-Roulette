@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const axios = require('axios'); // Добавлено для платежей
 const { TonClient, WalletContractV4, internal, toNano } = require("@ton/ton");
 const { mnemonicToWalletKey } = require("@ton/crypto");
 const TelegramBot = require('node-telegram-bot-api');
@@ -12,6 +13,10 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const MNEMONIC = process.env.MNEMONIC; 
 const TON_API_KEY = process.env.TON_API_KEY; 
 const ADMIN_USERNAME = 'makse666'; 
+
+// --- НАСТРОЙКИ ПЛАТЕЖЕЙ (Получите токены в ботах @CryptoBot и @xRocket) ---
+const CRYPTO_BOT_TOKEN = '508626:AA48pwvt1u5nV9CDe7pQHuyHOJIBpxzfjsB'; 
+const XROCKET_TOKEN = '82dfecf916b206243fa767d40';
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -142,6 +147,33 @@ io.on('connection', (socket) => {
             await user.save();
         }
         sendUserData(sId);
+    });
+
+    // --- ЛОГИКА ПЛАТЕЖЕЙ ЧЕРЕЗ БОТОВ ---
+    socket.on('createCryptoBotInvoice', async (data) => {
+        try {
+            const response = await axios.post('https://pay.crypt.bot/api/createInvoice', {
+                asset: 'TON',
+                amount: data.amount.toString(),
+            }, { headers: { 'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN } });
+
+            if (response.data.ok) {
+                socket.emit('openInvoice', response.data.result.pay_url);
+            }
+        } catch (e) { console.error("CryptoBot Error", e.message); }
+    });
+
+    socket.on('createXRocketInvoice', async (data) => {
+        try {
+            const response = await axios.post('https://pay.xrocket.tg/invoice', {
+                amount: parseFloat(data.amount),
+                currency: 'TON',
+            }, { headers: { 'Rocket-Pay-Key': XROCKET_TOKEN } });
+
+            if (response.data.success) {
+                socket.emit('openInvoice', response.data.data.link);
+            }
+        } catch (e) { console.error("XRocket Error", e.message); }
     });
 
     socket.on('requestWithdraw', async (data) => {
