@@ -91,6 +91,17 @@
         #winner-popup.show { bottom: 90px; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 5000; padding: 20px; }
         .modal-content { background: #111; width: 100%; max-width: 340px; border-radius: 24px; padding: 25px; text-align: center; border: 1px solid var(--star); }
+
+        /* --- ПЛАТЕЖНАЯ ПАНЕЛЬ --- */
+        .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+        .pay-method { 
+            background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1); 
+            border-radius: 16px; padding: 15px 10px; display: flex; flex-direction: column; 
+            align-items: center; gap: 8px; cursor: pointer; transition: 0.2s;
+        }
+        .pay-method:active { transform: scale(0.96); background: rgba(255,255,255,0.1); }
+        .pay-method img { width: 34px; height: 34px; border-radius: 8px; }
+        .pay-method span { font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
     </style>
 </head>
 <body>
@@ -123,7 +134,6 @@
                 </div>
             </div>
             
-            <!-- БАНК ВЕРНУЛСЯ ВВЕРХ -->
             <div class="bank-val" id="bank-val">0.00 TON</div>
             <div id="timer-label" style="text-align:center; font-size:11px; font-weight: 800; color: var(--star);">ОЖИДАЕМ ИГРОКОВ...</div>
             
@@ -134,7 +144,6 @@
             </div>
             <div id="players-list"></div>
 
-            <!-- ИНФОРМАЦИЯ ВНИЗУ БЕЗ БОЛЬШОГО БАНКА -->
             <div style="padding: 15px; font-family: monospace; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 5px;">
                 <div style="font-size: 8px; color: var(--hint); margin-bottom: 5px;">Hash: <span id="game-hash" style="color: rgba(255,255,255,0.7); word-break: break-all;">...</span></div>
                 <div style="display: flex; justify-content: center; font-size: 11px;">
@@ -211,7 +220,36 @@
 
     <div id="winner-popup"><div id="win-name" style="font-weight:900; color:var(--star); font-size:20px;">...</div><div id="win-amt">...</div></div>
     
-    <div id="buy-modal" class="modal"><div class="modal-content"><h3>Пополнение</h3><input type="number" id="dep-amt" value="1.0"><button class="btn-gold" onclick="payTON()">ПОПОЛНИТЬ</button><br><br><button onclick="closeModal('buy-modal')" style="background:none; border:none; color:white;">ЗАКРЫТЬ</button></div></div>
+    <!-- ОБНОВЛЕННОЕ ОКНО ПОПОЛНЕНИЯ -->
+    <div id="buy-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--star); margin-bottom: 5px;">ПОПОЛНЕНИЕ</h3>
+            <p style="color: var(--hint); font-size: 11px; margin-bottom: 15px;">Выберите сумму и способ оплаты</p>
+            <input type="number" id="dep-amt" value="1.0" placeholder="Сумма TON">
+            
+            <div class="pay-grid">
+                <div class="pay-method" onclick="payWithMethod('wallet')">
+                    <img src="https://ton.org/download/ton_symbol.png" alt="Wallet">
+                    <span>Wallet</span>
+                </div>
+                <div class="pay-method" onclick="payWithMethod('tonkeeper')">
+                    <img src="https://tonkeeper.com/assets/tonkeeper-logo.png" alt="TonKeeper">
+                    <span>TonKeeper</span>
+                </div>
+                <div class="pay-method" onclick="payWithMethod('cryptobot')">
+                    <img src="https://cryptobot.app/api/logo" alt="CryptoBot">
+                    <span>CryptoBot</span>
+                </div>
+                <div class="pay-method" onclick="payWithMethod('xrocket')">
+                    <img src="https://pay.xrocket.tg/favicon.ico" alt="XRocket" style="background: white;">
+                    <span>XRocket</span>
+                </div>
+            </div>
+
+            <br>
+            <button onclick="closeModal('buy-modal')" style="background:none; border:none; color:var(--hint); font-size: 12px; cursor:pointer;">ОТМЕНА</button>
+        </div>
+    </div>
 
     <div id="withdraw-modal" class="modal">
         <div class="modal-content">
@@ -375,14 +413,38 @@
         function makeBet() { let bet = parseFloat(document.getElementById('bet-input').value); if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON"); socket.emit('makeBet', { bet: bet }); }
         function makeBetX() { let bet = parseFloat(document.getElementById('x-bet-input').value); if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON"); socket.emit('makeBetX', { bet: bet, color: selectedXColor }); }
         
-        async function payTON() {
-            const amt = parseFloat(document.getElementById('dep-amt').value); if(isNaN(amt) || amt <= 0) return;
-            try {
-                const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
-                const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: "UQDWxxR8H_u-oDLcJsoF---vXr289fUTRbBeQ3WpKdmu2wSR", amount: nanoAmount }] };
-                await tonConnectUI.sendTransaction(transaction); socket.emit('depositConfirmed', amt); closeModal('buy-modal');
-            } catch(e) {}
+        // --- ЛОГИКА ПОПОЛНЕНИЯ ---
+        async function payWithMethod(method) {
+            const amt = parseFloat(document.getElementById('dep-amt').value);
+            if(isNaN(amt) || amt <= 0) return tg.showAlert("Введите сумму пополнения");
+
+            if(method === 'wallet' || method === 'tonkeeper') {
+                try {
+                    const nanoAmount = (BigInt(Math.floor(amt * 1000)) * BigInt(1000000)).toString();
+                    const transaction = { 
+                        validUntil: Math.floor(Date.now() / 1000) + 600, 
+                        messages: [{ address: "UQDWxxR8H_u-oDLcJsoF---vXr289fUTRbBeQ3WpKdmu2wSR", amount: nanoAmount }] 
+                    };
+                    await tonConnectUI.sendTransaction(transaction);
+                    socket.emit('depositConfirmed', amt); 
+                    closeModal('buy-modal');
+                    tg.showAlert("Транзакция отправлена!");
+                } catch(e) {
+                    console.error(e);
+                }
+            } else if (method === 'cryptobot') {
+                socket.emit('createCryptoBotInvoice', { amount: amt });
+            } else if (method === 'xrocket') {
+                socket.emit('createXRocketInvoice', { amount: amt });
+            }
         }
+
+        // Обработка ссылок от серверов (CryptoBot/XRocket)
+        socket.on('openInvoice', (url) => {
+            tg.openTelegramLink(url);
+            closeModal('buy-modal');
+            tg.showAlert("Счет открыт! После оплаты баланс обновится автоматически.");
+        });
 
         function requestWithdrawal() { const amt = parseFloat(document.getElementById('withdraw-amt').value); if(amt < 3) return alert("Минимальная сумма 3 TON"); socket.emit('requestWithdraw', { amount: amt }); }
         function copyRefLink() { const link = `https://t.me/slideroulettebot/app?startapp=${myId}`; const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); tg.showAlert("Ссылка скопирована!"); }
