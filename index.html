@@ -115,7 +115,6 @@
             text-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
         
-        /* Эффект пульсации при наведении (или просто легкий блеск) */
         .pay-method { position: relative; overflow: hidden; }
         .pay-method::after {
             content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
@@ -240,7 +239,6 @@
 
     <div id="winner-popup"><div id="win-name" style="font-weight:900; color:var(--star); font-size:20px;">...</div><div id="win-amt">...</div></div>
     
-    <!-- ОБНОВЛЕННОЕ ОКНО ПОПОЛНЕНИЯ БЕЗ ИКОНОК С АНИМАЦИЕЙ -->
     <div id="buy-modal" class="modal">
         <div class="modal-content">
             <h3 style="color: var(--star); margin-bottom: 5px;">ПОПОЛНЕНИЕ</h3>
@@ -425,7 +423,6 @@
         function makeBet() { let bet = parseFloat(document.getElementById('bet-input').value); if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON"); socket.emit('makeBet', { bet: bet }); }
         function makeBetX() { let bet = parseFloat(document.getElementById('x-bet-input').value); if(bet < 0.01) return tg.showAlert("Мин. ставка 0.01 TON"); socket.emit('makeBetX', { bet: bet, color: selectedXColor }); }
         
-        // --- ЛОГИКА ПОПОЛНЕНИЯ ---
         async function payWithMethod(method) {
             const amt = parseFloat(document.getElementById('dep-amt').value);
             if(isNaN(amt) || amt <= 0) return tg.showAlert("Введите сумму пополнения");
