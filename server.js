@@ -16,7 +16,6 @@ const ADMIN_USERNAME = 'makse666';
 
 // --- НАСТРОЙКИ ПЛАТЕЖЕЙ ---
 const CRYPTO_BOT_TOKEN = '508626:AA48pwvt1u5nV9CDe7pQHuyHOJIBpxzfjsB'; 
-const XROCKET_TOKEN = '82dfecf916b206243fa767d40';
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -149,7 +148,7 @@ io.on('connection', (socket) => {
         sendUserData(sId);
     });
 
-    // --- ЛОГИКА ПЛАТЕЖЕЙ ЧЕРЕЗ БОТОВ ---
+    // --- CRYPTO BOT ---
     socket.on('createCryptoBotInvoice', async (data) => {
         try {
             const response = await axios.post('https://pay.crypt.bot/api/createInvoice', {
@@ -161,19 +160,6 @@ io.on('connection', (socket) => {
                 socket.emit('openInvoice', response.data.result.pay_url);
             }
         } catch (e) { console.error("CryptoBot Error", e.message); }
-    });
-
-    socket.on('createXRocketInvoice', async (data) => {
-        try {
-            const response = await axios.post('https://pay.xrocket.tg/invoice', {
-                amount: parseFloat(data.amount),
-                currency: 'TON',
-            }, { headers: { 'Rocket-Pay-Key': XROCKET_TOKEN } });
-
-            if (response.data.success) {
-                socket.emit('openInvoice', response.data.data.link);
-            }
-        } catch (e) { console.error("XRocket Error", e.message); }
     });
 
     socket.on('requestWithdraw', async (data) => {
